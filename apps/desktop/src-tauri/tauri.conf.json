@@ -1,0 +1,104 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Friday",
+  "version": "1.0.0",
+  "identifier": "com.leo.friday",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "onboarding",
+        "title": "Welcome to Friday",
+        "width": 480,
+        "height": 520,
+        "center": true,
+        "visible": false,
+        "resizable": false
+      },
+      {
+        "label": "panel",
+        "title": "Friday",
+        "width": 480,
+        "height": 720,
+        "center": true,
+        "visible": false
+      },
+      {
+        "label": "pet",
+        "title": "Friday Pet",
+        "width": 160,
+        "height": 160,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": false,
+        "shadow": false
+      },
+      {
+        "label": "status-bubble",
+        "title": "Friday Status",
+        "width": 280,
+        "height": 80,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": false,
+        "shadow": false
+      },
+      {
+        "label": "quick-bubble",
+        "title": "Friday",
+        "width": 288,
+        "height": 340,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": false,
+        "shadow": false
+      },
+      {
+        "label": "command-center",
+        "title": "Friday Command Center",
+        "width": 1100,
+        "height": 760,
+        "center": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "./bundle/windows/nsis-hooks.nsh",
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": false,
+        "customLanguageFiles": {
+          "SimpChinese": "./bundle/windows/SimpChinese.nsh"
+        }
+      }
+    }
+  }
+}

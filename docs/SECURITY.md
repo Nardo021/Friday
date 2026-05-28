@@ -38,6 +38,34 @@ Before persisting or displaying logs:
 
 Replaced with `[REDACTED]` via `secret_redactor.rs`.
 
+## Local Data Storage
+
+All Friday data stays on the user's machine.
+
+| Data | Location | Protection |
+|---|---|---|
+| Cursor API key | OS credential store (`keyring` crate) | Windows Credential Manager / macOS Keychain / Linux Secret Service |
+| Data encryption key | OS credential store (`Friday/friday_data_key`) | AES-256-GCM key for message/event payloads |
+| Settings, sessions, projects | `%APPDATA%\com.leo.friday\friday.db` (Windows) | User profile ACL; API key not in SQLite |
+| Message & event payloads | SQLite `messages` / `session_events` | AES-256-GCM (`enc:v1:` prefix); key in credential store |
+| Session logs | `%APPDATA%\com.leo.friday\logs\` | Same as app data directory |
+Legacy installs used `%APPDATA%\Friday\`; data is migrated to `com.leo.friday` on startup.
+
+API keys previously saved in SQLite are migrated to the OS credential store automatically.
+
+### In-app wipe
+
+Command Center → Settings → **Delete all local data** writes a wipe marker, clears credential-store entries, restarts, then deletes the data directory on next launch (avoids SQLite file lock on Windows).
+### Uninstaller (Windows NSIS)
+
+During uninstall, check **删除本地数据（设置、会话、API 密钥等）** to remove:
+
+- `%APPDATA%\com.leo.friday\` (Tauri default)
+- Legacy `%APPDATA%\Friday\`
+- Cursor API key in Windows Credential Manager (`Friday/cursor_api_key`)
+- Data encryption key (`Friday/friday_data_key`)
+Configured in `bundle/windows/nsis-hooks.nsh`.
+
 ## Process Kill Switch
 
 Stop flow:

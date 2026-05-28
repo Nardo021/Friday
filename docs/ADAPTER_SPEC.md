@@ -1,78 +1,39 @@
-# Agent Adapter Specification
+# Agent Adapter Specification (v2)
 
-## AgentAdapter Interface
+## Adapter IDs
 
-Every coding agent integrates via a common adapter contract.
+| ID | Session Type | v1 Status |
+|---|---|---|
+| `external-cursor-observer` | external_cli | Live |
+| `cursor-cli-local` | friday_owned_cli | Live |
+| `cursor-sdk-local` | cursor_sdk_local | Stub |
+| `cursor-cloud-agent` | cursor_cloud | Stub |
 
-### Required Methods
-
-| Method | Description |
-|---|---|
-| `id` | Unique adapter id (e.g. `cursor-cli`) |
-| `name` | Display name |
-| `capabilities` | Feature flags for UI |
-| `start_session` | Spawn agent with prompt + cwd |
-| `send_message` | Send follow-up (if supported) |
-| `stop_session` | Graceful then force stop |
-| `on_event` | Callback for normalized `AgentEvent` |
-
-### Optional Methods
-
-| Method | Description |
-|---|---|
-| `approve` | Approve pending command/tool |
-| `reject` | Reject pending command/tool |
-
-## AgentCapabilities
+## AgentAdapter (Rust trait / TS contract)
 
 ```typescript
-{
-  supportsStreaming: boolean;
-  supportsInteractiveInput: boolean;
-  supportsApprovals: boolean | "partial";
-  supportsFileChangeEvents: boolean | "parsed";
-  supportsCommandEvents: boolean | "parsed";
-  supportsSessionResume: boolean;
-  supportsStop: boolean;
-}
+createSession(input: CreateSessionInput): Promise<FridaySession>
+attachSession?(input: AttachSessionInput): Promise<FridaySession>
+sendMessage?(sessionId, message): Promise<void>
+stopSession?(sessionId): Promise<void>
+onEvent(callback): void
 ```
 
-## Cursor CLI Adapter (v1)
+## CursorCliLauncher
 
-**Executable:** `cursor-agent` (configurable path)
-
-**Default command:**
-
-```bash
-cursor-agent -p --output-format stream-json --stream-partial-output "<prompt>"
+```
+resolve_executable → validate_repo_path → build_args (from settings.argTemplates)
+→ inject_safe_env → start_pty | pipe_fallback → register_session → stream_events
 ```
 
-**Parser rules:**
+CLI flags must **not** be hardcoded — use `FridaySettings.cursor.argTemplates.headlessStream`.
 
-1. Each stdout line → try JSON parse
-2. `assistant` + `timestamp_ms` → streaming text delta
-3. `assistant` without `timestamp_ms` → skip (buffered duplicate)
-4. `tool_use` / tool events → `tool.started` / `tool.completed`
-5. `result` → `session.completed` with final text
-6. Non-JSON lines → plain-text fallback → `agent.status` or `agent.message`
+## Capabilities
 
-**Event mapping:**
+See `packages/agent-core/src/capabilities.ts` for `AgentCapabilities` matrix per adapter.
 
-| Cursor | Friday Event |
-|---|---|
-| File read | `agent.status: reading` |
-| File edit | `file.changed` + `agent.status: editing` |
-| Shell command | `command.started` / `command.completed` |
-| Assistant text | `agent.message` |
-| Done | `session.completed` |
-| Error | `session.error` |
+## Events
 
-## Future Adapters (stub in registry)
+All adapters map output to `AgentEvent` in `packages/agent-core/src/events.ts`.
 
-- `claude-code`
-- `codex-cli`
-- `gemini-cli`
-- `piecez-agent`
-- `mono-agent`
-
-UI must only depend on `AgentEvent` and `AgentCapabilities`, never adapter-specific output formats.
+UI and storage only consume normalized events.

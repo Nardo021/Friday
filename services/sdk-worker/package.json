@@ -1,0 +1,14 @@
+{
+  "name": "@friday/sdk-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "start": "node --experimental-strip-types src/index.ts"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3"
+  }
+}

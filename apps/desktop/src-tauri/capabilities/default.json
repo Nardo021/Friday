@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for all Friday windows",
+  "windows": ["panel", "pet", "status-bubble", "quick-bubble", "command-center", "chat", "onboarding"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-current-monitor",
+    "core:tray:default",
+    "opener:default"
+  ]
+}
