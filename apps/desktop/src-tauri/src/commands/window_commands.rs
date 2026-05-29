@@ -1,5 +1,8 @@
-use tauri::AppHandle;
+use std::sync::Arc;
 
+use tauri::{AppHandle, State};
+
+use crate::core::AgentCore;
 use crate::system::screen_manager::{MonitorInfo, WindowPosition};
 use crate::system::window_manager;
 
@@ -117,4 +120,18 @@ pub fn finish_onboarding(app: AppHandle) -> Result<(), crate::errors::AppError> 
 #[tauri::command]
 pub fn open_onboarding(app: AppHandle) -> Result<(), crate::errors::AppError> {
     window_manager::show_onboarding(&app)
+}
+
+#[tauri::command]
+pub fn pet_surface_ready(
+    app: AppHandle,
+    core: State<'_, Arc<AgentCore>>,
+) -> Result<(), crate::errors::AppError> {
+    let settings = core.settings_snapshot();
+    window_manager::pet_surface_ready(
+        &app,
+        settings.onboarding.completed,
+        settings.pet.last_x,
+        settings.pet.last_y,
+    )
 }

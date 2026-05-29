@@ -1,10 +1,13 @@
+import { AppProviders } from "./providers";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { WindowRouter } from "./routes";
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <WindowRouter />
-    </ErrorBoundary>
+    <AppProviders>
+      <ErrorBoundary>
+        <WindowRouter />
+      </ErrorBoundary>
+    </AppProviders>
   );
 }

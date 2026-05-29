@@ -7,7 +7,19 @@ pub fn register_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::err
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
 
-    bind(app, Shortcut::new(Some(Modifiers::CONTROL), Code::Space), "quick_bubble")?;
+    #[cfg(target_os = "windows")]
+    {
+        // Avoid Ctrl+Space — it conflicts with the Chinese IME switcher on Windows.
+        bind(
+            app,
+            Shortcut::new(Some(Modifiers::ALT | Modifiers::SHIFT), Code::Space),
+            "quick_bubble",
+        )?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        bind(app, Shortcut::new(Some(Modifiers::CONTROL), Code::Space), "quick_bubble")?;
+    }
     bind(
         app,
         Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyF),

@@ -163,11 +163,10 @@ impl IntentRouter {
             }
         }
 
-        if Self::is_new_task_intent(&lower) || ctx.project_id.is_some() {
-            let project_id = ctx.project_id.clone()?;
+        if Self::is_new_task_intent(&lower) {
             return Some(RouteResult {
                 intent: QuickIntent::NewTask {
-                    project_id,
+                    project_id: ctx.project_id.clone().unwrap_or_default(),
                     mode: ctx.mode.clone(),
                     prompt: trimmed.to_string(),
                 },
@@ -177,7 +176,32 @@ impl IntentRouter {
             });
         }
 
-        None
+        if let Some(session) = &ctx.active_session {
+            if !is_running_status(session.status) {
+                return Some(RouteResult {
+                    intent: QuickIntent::NewTask {
+                        project_id: ctx.project_id.clone().unwrap_or_default(),
+                        mode: ctx.mode.clone(),
+                        prompt: trimmed.to_string(),
+                    },
+                    confidence: 0.65,
+                    source: "rules".into(),
+                    status_message: None,
+                });
+            }
+        }
+
+        // Chat-first: unmatched text starts (or continues) an agent conversation.
+        Some(RouteResult {
+            intent: QuickIntent::NewTask {
+                project_id: ctx.project_id.clone().unwrap_or_default(),
+                mode: ctx.mode.clone(),
+                prompt: trimmed.to_string(),
+            },
+            confidence: 0.6,
+            source: "default".into(),
+            status_message: None,
+        })
     }
 
     fn is_stop_intent(lower: &str) -> bool {
@@ -264,10 +288,6 @@ impl IntentRouter {
             "Save as idea".into(),
             "Check session status".into(),
         ];
-        if ctx.project_id.is_none() {
-            options.push("Select a project first".into());
-        }
-
         RouteResult {
             intent: QuickIntent::Clarify {
                 message: format!(
@@ -283,12 +303,10 @@ impl IntentRouter {
     }
 
     async fn llm_classify(ctx: &RouteContext) -> AppResult<RouteResult> {
+        // LLM routing uses OpenAI only. Cursor API keys belong to Cloud Agents — never send them to OpenAI.
         let api_key = match SecretStore::get_stt_api_key()? {
             Some(k) => k,
-            None => match SecretStore::get_cursor_api_key()? {
-                Some(k) => k,
-                None => return Err(AppError::Other("no LLM API key".into())),
-            },
+            None => return Err(AppError::Other("no OpenAI STT API key for LLM routing".into())),
         };
 
         let session_hint = ctx

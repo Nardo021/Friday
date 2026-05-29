@@ -34,6 +34,7 @@ interface SessionState {
   projects: Project[];
   selectedProjectId: string | null;
   loading: boolean;
+  bootstrap: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshProjects: () => Promise<void>;
   selectActiveSession: (id: string | null) => Promise<void>;
@@ -41,6 +42,18 @@ interface SessionState {
   handleEvent: (event: AgentEvent) => void;
   setSelectedProject: (id: string | null) => void;
   clearTimeline: (sessionId: string) => void;
+}
+
+let loadingRequests = 0;
+
+function beginLoading(set: (partial: Partial<SessionState>) => void) {
+  loadingRequests += 1;
+  set({ loading: true });
+}
+
+function endLoading(set: (partial: Partial<SessionState>) => void) {
+  loadingRequests = Math.max(0, loadingRequests - 1);
+  set({ loading: loadingRequests > 0 });
 }
 
 function eventToTimeline(event: AgentEvent): TimelineItem | null {
@@ -101,6 +114,20 @@ function eventToTimeline(event: AgentEvent): TimelineItem | null {
         prUrl: event.prUrl,
         timestamp: event.timestamp,
       };
+    case "session.error":
+      return {
+        kind: "status",
+        status: "error",
+        message: event.error,
+        timestamp: event.timestamp,
+      };
+    case "session.completed":
+      return {
+        kind: "status",
+        status: "done",
+        message: event.summary,
+        timestamp: event.timestamp,
+      };
     default:
       return null;
   }
@@ -111,6 +138,9 @@ function sessionsRecord(list: FridaySession[]): Record<string, FridaySession> {
 }
 
 const EMPTY_TIMELINE: TimelineItem[] = [];
+
+/** Matches Rust `SURFACE_SESSION_ID` for errors before a session exists. */
+export const SURFACE_SESSION_ID = "friday-surface";
 const MAX_TIMELINE_ITEMS = 250;
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -159,23 +189,47 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  refreshSessions: async () => {
-    set({ loading: true });
+  bootstrap: async () => {
+    beginLoading(set);
     try {
-      const list = await listSessions();
+      const [projects, sessions] = await Promise.all([
+        listProjects().catch(() => [] as Project[]),
+        listSessions().catch(() => [] as FridaySession[]),
+      ]);
+      get().hydrate(sessions);
+      set((state) => ({
+        projects,
+        selectedProjectId:
+          state.selectedProjectId &&
+          projects.some((p) => p.id === state.selectedProjectId)
+            ? state.selectedProjectId
+            : null,
+      }));
+    } finally {
+      endLoading(set);
+    }
+  },
+
+  refreshSessions: async () => {
+    beginLoading(set);
+    try {
+      const list = await listSessions().catch(() => [] as FridaySession[]);
       get().hydrate(list);
     } finally {
-      set({ loading: false });
+      endLoading(set);
     }
   },
 
   refreshProjects: async () => {
-    set({ loading: true });
+    beginLoading(set);
     try {
-      const projects = await listProjects();
+      const projects = await listProjects().catch(() => [] as Project[]);
       set((state) => {
         const nextSelected =
-          state.selectedProjectId ?? projects[0]?.id ?? null;
+          state.selectedProjectId &&
+          projects.some((p) => p.id === state.selectedProjectId)
+            ? state.selectedProjectId
+            : null;
         const unchanged =
           state.selectedProjectId === nextSelected &&
           state.projects.length === projects.length &&
@@ -192,7 +246,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         };
       });
     } finally {
-      set({ loading: false });
+      endLoading(set);
     }
   },
 
@@ -305,15 +359,27 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
       case "session.error": {
         const session = state.sessions[sessionId];
+        const timelineKey = session
+          ? sessionId
+          : (state.activeSessionId ?? sessionId);
         if (session) {
           updates.sessions = {
             ...state.sessions,
             [sessionId]: { ...session, status: "error" as FridaySessionStatus },
           };
+        } else if (state.activeSessionId && state.sessions[state.activeSessionId]) {
+          const active = state.sessions[state.activeSessionId];
+          updates.sessions = {
+            ...state.sessions,
+            [state.activeSessionId]: {
+              ...active,
+              status: "error" as FridaySessionStatus,
+            },
+          };
         }
         updates.statusMessages = {
           ...state.statusMessages,
-          [sessionId]: event.error,
+          [timelineKey]: event.error,
         };
         break;
       }
@@ -334,11 +400,12 @@ export function useActiveSession(): FridaySession | null {
 }
 
 export function useActiveTimeline(): TimelineItem[] {
-  return useSessionStore((s) =>
-    s.activeSessionId
-      ? (s.timelines[s.activeSessionId] ?? EMPTY_TIMELINE)
-      : EMPTY_TIMELINE,
-  );
+  return useSessionStore((s) => {
+    if (s.activeSessionId) {
+      return s.timelines[s.activeSessionId] ?? EMPTY_TIMELINE;
+    }
+    return s.timelines[SURFACE_SESSION_ID] ?? EMPTY_TIMELINE;
+  });
 }
 
 export function useActivePendingApproval(): PendingApproval | undefined {
@@ -350,11 +417,12 @@ export function useActivePendingApproval(): PendingApproval | undefined {
 }
 
 export function useActiveStatusMessage(): string | undefined {
-  return useSessionStore((s) =>
-    s.activeSessionId
-      ? s.statusMessages[s.activeSessionId]
-      : undefined,
-  );
+  return useSessionStore((s) => {
+    if (s.activeSessionId) {
+      return s.statusMessages[s.activeSessionId];
+    }
+    return s.statusMessages[SURFACE_SESSION_ID];
+  });
 }
 
 export function useSessionList(): FridaySession[] {

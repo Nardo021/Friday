@@ -1,5 +1,6 @@
 import React from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { TriangleAlert } from "lucide-react";
 
 interface Props {
   children: React.ReactNode;
@@ -27,10 +28,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex h-screen flex-col items-center justify-center gap-3 bg-zinc-950 px-6 text-center text-zinc-200">
+        <div className="flex h-screen flex-col items-center justify-center gap-3 bg-background px-6 text-center text-foreground">
+          <TriangleAlert className="size-10 text-destructive" />
           <h1 className="text-lg font-semibold">Friday failed to load</h1>
-          <p className="text-xs text-zinc-500">Window: {windowLabel()}</p>
-          <p className="max-w-md text-sm text-zinc-400">
+          <p className="text-xs text-muted-foreground">Window: {windowLabel()}</p>
+          <p className="max-w-md text-sm text-muted-foreground">
             {this.state.error.message}
           </p>
         </div>

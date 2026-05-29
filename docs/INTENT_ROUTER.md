@@ -3,7 +3,7 @@
 Friday routes Quick Bubble input through a hybrid classifier:
 
 1. **Rules** — fast, offline patterns (stop, status, save idea, follow-up, new task)
-2. **LLM fallback** — OpenAI `gpt-4o-mini` JSON classification when rules are ambiguous (uses STT or Cursor API key from keyring)
+2. **LLM fallback** — OpenAI `gpt-4o-mini` JSON classification when rules are ambiguous (requires optional OpenAI STT API key in Settings; Cursor API key is not used here)
 3. **Clarify** — returns action chips when confidence is low
 
 ## IPC

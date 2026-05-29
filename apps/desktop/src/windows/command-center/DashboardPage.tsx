@@ -1,9 +1,20 @@
 import { useEffect, useMemo } from "react";
+import {
+  Bot,
+  FolderKanban,
+  MessageSquare,
+  Settings,
+} from "lucide-react";
 
 import { isRunningStatus } from "@friday/agent-core";
 
+import { QuickLinkButton } from "@/components/friday/QuickLinkButton";
 import { StatusPill } from "@/components/friday/StatusPill";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { usePanelNavigation } from "@/hooks/usePanelNavigation";
+import { openQuickBubble } from "@/lib/tauri";
+import { UX } from "@/lib/ux";
 import {
   useActiveSession,
   useActiveStatusMessage,
@@ -15,7 +26,9 @@ export function DashboardPage() {
   const session = useActiveSession();
   const statusMessage = useActiveStatusMessage();
   const sessions = useSessionList();
-  const { projects, refreshSessions, refreshProjects } = useSessionStore();
+  const { projects, selectedProjectId, refreshSessions, refreshProjects } =
+    useSessionStore();
+  const { goToAgent, goToPage } = usePanelNavigation();
 
   useEffect(() => {
     refreshSessions();
@@ -34,93 +47,188 @@ export function DashboardPage() {
     ).length;
   }, [sessions]);
 
-  const activeProject = projects[0];
+  const runningCount = sessions.filter((s) => isRunningStatus(s.status)).length;
+  const activeProject = selectedProjectId
+    ? projects.find((p) => p.id === selectedProjectId)
+    : undefined;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Session</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {session ? (
-            <div className="space-y-2">
-              <div>{session.title}</div>
-              <StatusPill status={session.status} />
-              {statusMessage && (
-                <p className="text-sm text-zinc-400">{statusMessage}</p>
-              )}
-            </div>
-          ) : (
-            <p className="text-zinc-400">No active session</p>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1 text-sm text-zinc-400">
-          <p>Completed today: {completedToday}</p>
-          <p>External CLI sessions: {external.length}</p>
-          <p>
-            Running:{" "}
-            {sessions.filter((s) => isRunningStatus(s.status)).length}
-          </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Active Project</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeProject ? (
-            <div>
-              <div className="font-medium">{activeProject.name}</div>
-              <div className="text-xs text-zinc-500">{activeProject.path}</div>
-            </div>
-          ) : (
-            <p className="text-zinc-400">Add a project to get started</p>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>External CLI</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {external.length === 0 ? (
-            <p className="text-sm text-zinc-500">None detected</p>
-          ) : (
-            <ul className="space-y-1 text-sm">
-              {external.map((s) => (
-                <li key={s.id} className="flex justify-between gap-2">
-                  <span className="truncate">{s.title}</span>
-                  <StatusPill status={s.status} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Recent Sessions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {recent.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between rounded border border-zinc-800 px-3 py-2"
-              >
-                <span>{s.title}</span>
-                <StatusPill status={s.status} />
+    <div className={UX.page} data-od-id="dashboard">
+      <div className="motion-stagger flex flex-wrap gap-2">
+        <QuickLinkButton
+          icon={Bot}
+          label="New task"
+          onClick={() => goToAgent()}
+        />
+        <QuickLinkButton
+          icon={MessageSquare}
+          label="Quick chat"
+          onClick={() => void openQuickBubble()}
+        />
+        <QuickLinkButton
+          icon={FolderKanban}
+          label="Projects"
+          onClick={() => goToPage("projects")}
+        />
+        <QuickLinkButton
+          icon={Settings}
+          label="Settings"
+          onClick={() => goToPage("settings")}
+        />
+      </div>
+
+      <section
+        data-od-id="dashboard-live"
+        className="flex flex-wrap items-baseline gap-x-8 gap-y-2 border-b border-border pb-6"
+      >
+        <p className="text-sm text-muted-foreground">
+          <span className="font-mono text-2xl text-foreground tabular-nums">
+            {runningCount}
+          </span>{" "}
+          running
+        </p>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-mono text-foreground tabular-nums">
+            {completedToday}
+          </span>{" "}
+          done today
+        </p>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-mono text-foreground tabular-nums">
+            {external.length}
+          </span>{" "}
+          external CLI
+        </p>
+      </section>
+
+      <div className="motion-stagger grid gap-4 md:grid-cols-2">
+        <Card data-od-id="dashboard-current-session">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Current session</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {session ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
+                  <p className="font-medium leading-snug">{session.title}</p>
+                  <StatusPill status={session.status} />
+                  {statusMessage && (
+                    <p className="text-sm text-muted-foreground">{statusMessage}</p>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-fit"
+                  onClick={() => goToAgent(session.id)}
+                >
+                  Open in agent
+                </Button>
               </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  No active session — start one from Agent or Quick Chat.
+                </p>
+                <Button size="sm" onClick={() => goToAgent()}>
+                  Go to agent
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-od-id="dashboard-project">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Working folder</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {activeProject ? (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="font-medium">{activeProject.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground break-all">
+                    {activeProject.path}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-fit"
+                  onClick={() => goToPage("projects")}
+                >
+                  Manage projects
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Chat works without a repo. Link a folder here when you want
+                  agents scoped to a codebase.
+                </p>
+                <Button size="sm" variant="secondary" onClick={() => goToPage("projects")}>
+                  Link a repo (optional)
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <section data-od-id="dashboard-recent" className={UX.section}>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">Recent sessions</h3>
+          {sessions.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => goToPage("sessions")}
+            >
+              View all
+            </Button>
+          )}
+        </div>
+        {recent.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing recent yet.</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-lg border">
+            {recent.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-accent/50"
+                  onClick={() => goToAgent(s.id)}
+                >
+                  <span className="min-w-0 truncate">{s.title}</span>
+                  <StatusPill status={s.status} />
+                </button>
+              </li>
             ))}
-          </div>
-        </CardContent>
-      </Card>
+          </ul>
+        )}
+      </section>
+
+      {external.length > 0 && (
+        <section data-od-id="dashboard-external" className={UX.section}>
+          <h3 className="text-sm font-medium">External CLI</h3>
+          <ul className="motion-stagger divide-y divide-border rounded-lg border">
+            {external.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-accent/50"
+                  onClick={() => goToAgent(s.id)}
+                >
+                  <span className="min-w-0 truncate">{s.title}</span>
+                  <StatusPill status={s.status} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

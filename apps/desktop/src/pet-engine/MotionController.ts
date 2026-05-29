@@ -35,16 +35,19 @@ export class MotionController {
     const windowSize = 160;
     const minX = workAreaX;
     const maxX = workAreaX + workAreaWidth - windowSize;
-    const targetY = workAreaY + workAreaHeight - windowSize - BOTTOM_MARGIN;
+    const patrolY = workAreaY + workAreaHeight - windowSize - BOTTOM_MARGIN;
 
     let { x, y } = actor.position;
-    if (!this.positionInitialized && (x === 0 && y === 0)) {
+    if (!this.positionInitialized && x === 0 && y === 0) {
       x = maxX - 24;
-      y = targetY;
+      y = patrolY;
       this.positionInitialized = true;
     }
 
-    y = targetY;
+    // Keep user-dragged height; only snap Y while the pet is still on the patrol line.
+    if (Math.abs(y - patrolY) <= 2) {
+      y = patrolY;
+    }
     let nextBehavior = behaviorState;
 
     if (behaviorState === "idle") {

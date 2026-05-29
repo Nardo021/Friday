@@ -23,8 +23,8 @@
       {
         "label": "panel",
         "title": "Friday",
-        "width": 480,
-        "height": 720,
+        "width": 1100,
+        "height": 760,
         "center": true,
         "visible": false
       },
@@ -57,8 +57,8 @@
       {
         "label": "quick-bubble",
         "title": "Friday",
-        "width": 288,
-        "height": 340,
+        "width": 280,
+        "height": 476,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
@@ -66,14 +66,6 @@
         "visible": false,
         "resizable": false,
         "shadow": false
-      },
-      {
-        "label": "command-center",
-        "title": "Friday Command Center",
-        "width": 1100,
-        "height": 760,
-        "center": true,
-        "visible": false
       }
     ],
     "security": {

@@ -1,5 +1,5 @@
 import type { FridaySessionStatus } from "@friday/agent-core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 
 import type { AgentEvent } from "@friday/agent-core";
 import { isRunningStatus } from "@friday/agent-core";
@@ -16,15 +16,18 @@ import {
 
 import { BehaviorStateMachine } from "./BehaviorStateMachine";
 import { BubbleController } from "./BubbleController";
+import { HitTestEngine } from "./HitTestEngine";
 import { MotionController } from "./MotionController";
 import { PetActor } from "./PetActor";
 
 const TICK_MS = 50;
+const HIT_POLL_MS = 32;
 const PET_LABEL = "pet";
 const BUBBLE_FOLLOW_INTERVAL_MS = 120;
 
 export interface PetEngineOptions {
   onMoodChange?: (mood: PetActor["mood"]) => void;
+  onHoverChange?: (hovering: boolean) => void;
 }
 
 export class PetEngine {
@@ -32,8 +35,10 @@ export class PetEngine {
   private readonly bsm = new BehaviorStateMachine();
   private readonly motion = new MotionController();
   private readonly bubble = new BubbleController();
+  private readonly hitTest = new HitTestEngine();
   private options: PetEngineOptions;
   private timer: number | null = null;
+  private hitPollTimer: number | null = null;
   private lastTick = 0;
   private patrolEnabled = true;
   private saveTimer: number | null = null;
@@ -44,6 +49,9 @@ export class PetEngine {
   private lastNotifiedMood: PetActor["mood"] | null = null;
   private lastAgentStatusKey = "";
   private clickThroughEnabled: boolean | null = null;
+  private isHoveringPet = false;
+  private interactionLocked = false;
+  private petScale = 1;
   private lastSavedPosition = { x: NaN, y: NaN };
   private initGeneration = 0;
   private behaviorShowBubble = true;
@@ -64,12 +72,23 @@ export class PetEngine {
     const generation = ++this.initGeneration;
     this.running = true;
 
-    const [pos, monitor, settings, sessions] = await Promise.all([
-      getPetPosition(),
-      getMonitorInfo(),
-      getSettings(),
-      listSessions().catch(() => []),
-    ]);
+    let pos: Awaited<ReturnType<typeof getPetPosition>>;
+    let monitor: Awaited<ReturnType<typeof getMonitorInfo>>;
+    let settings: Awaited<ReturnType<typeof getSettings>>;
+    let sessions: Awaited<ReturnType<typeof listSessions>>;
+
+    try {
+      [pos, monitor, settings, sessions] = await Promise.all([
+        getPetPosition(),
+        getMonitorInfo(),
+        getSettings(),
+        listSessions().catch(() => []),
+      ]);
+    } catch {
+      if (!this.isCurrentInit(generation)) return;
+      this.notifyMood("calm");
+      return;
+    }
 
     if (!this.isCurrentInit(generation)) return;
 
@@ -79,8 +98,11 @@ export class PetEngine {
     this.behaviorAutoCollapse = settings.behavior.autoCollapseBubble;
     this.motion.setMonitor(monitor);
     this.motion.markPositionInitialized();
-    this.clickThroughEnabled = false;
-    void this.setClickThrough(false);
+    this.petScale = Math.max(0.5, settings.appearance?.petScale ?? 1);
+    this.hitTest.setScale(this.petScale);
+    this.clickThroughEnabled = true;
+    void this.setClickThrough(true);
+    this.startHitPolling();
 
     const win = getCurrentWindow();
     this.moveUnlisten = await win.onMoved(() => {
@@ -141,7 +163,7 @@ export class PetEngine {
   }
 
   private async syncPositionFromWindow() {
-    if (this.isMovingProgrammatically) return;
+    if (this.isMovingProgrammatically || this.interactionLocked) return;
 
     const pos = await getPetPosition();
     this.actor.setPosition(pos.x, pos.y);
@@ -162,7 +184,12 @@ export class PetEngine {
     const dt = Math.min(0.1, (now - this.lastTick) / 1000);
     this.lastTick = now;
 
-    if (!this.patrolEnabled || !this.bsm.shouldPatrol() || this.actor.isDragging) {
+    if (
+      !this.patrolEnabled ||
+      !this.bsm.shouldPatrol() ||
+      this.actor.isDragging ||
+      this.interactionLocked
+    ) {
       return;
     }
 
@@ -190,6 +217,26 @@ export class PetEngine {
     }
   }
 
+  setPetScale(scale: number) {
+    const next = Math.max(0.5, scale);
+    if (next === this.petScale) return;
+    this.petScale = next;
+    this.hitTest.setScale(next);
+  }
+
+  setInteractionLocked(locked: boolean) {
+    if (this.interactionLocked === locked) return;
+    this.interactionLocked = locked;
+    if (locked) {
+      if (this.clickThroughEnabled !== false) {
+        this.clickThroughEnabled = false;
+        void this.setClickThrough(false);
+      }
+    } else {
+      void this.pollPointerHit();
+    }
+  }
+
   setDragging(dragging: boolean) {
     if (this.actor.isDragging === dragging) return;
 
@@ -198,7 +245,9 @@ export class PetEngine {
     this.actor.behaviorState = this.bsm.current;
 
     if (dragging) {
-      void this.setClickThrough(false);
+      void this.applyHitState(true);
+    } else {
+      void this.pollPointerHit();
     }
   }
 
@@ -219,14 +268,49 @@ export class PetEngine {
   }
 
   handlePointerMove(localX: number, localY: number) {
-    if (this.actor.isDragging) return;
-    // Keep the pet window fully interactive; corner click-through caused missed clicks.
-    if (this.clickThroughEnabled !== false) {
-      this.clickThroughEnabled = false;
-      void this.setClickThrough(false);
+    if (this.actor.isDragging || this.interactionLocked) return;
+    void this.applyHitState(this.hitTest.isSolidPixel(localX, localY));
+  }
+
+  private startHitPolling() {
+    if (this.hitPollTimer) return;
+    this.hitPollTimer = window.setInterval(() => {
+      void this.pollPointerHit();
+    }, HIT_POLL_MS);
+  }
+
+  private async pollPointerHit() {
+    if (!this.running || this.actor.isDragging || this.interactionLocked) {
+      return;
     }
-    void localX;
-    void localY;
+
+    try {
+      const win = getCurrentWindow();
+      const [cursor, origin, size] = await Promise.all([
+        cursorPosition(),
+        win.outerPosition(),
+        win.outerSize(),
+      ]);
+      this.hitTest.setWindowSize(size.width, size.height);
+      const localX = cursor.x - origin.x;
+      const localY = cursor.y - origin.y;
+      await this.applyHitState(this.hitTest.isSolidPixel(localX, localY));
+    } catch {
+      // ignore transient window/cursor API errors
+    }
+  }
+
+  private async applyHitState(hit: boolean) {
+    const wantClickThrough = !hit;
+    if (this.clickThroughEnabled !== wantClickThrough) {
+      this.clickThroughEnabled = wantClickThrough;
+      await this.setClickThrough(wantClickThrough);
+    }
+
+    if (this.isHoveringPet !== hit) {
+      this.isHoveringPet = hit;
+      this.options.onHoverChange?.(hit);
+    }
   }
 
   private async setClickThrough(enabled: boolean) {
@@ -266,6 +350,10 @@ export class PetEngine {
   stop() {
     this.running = false;
     this.initGeneration += 1;
+    if (this.hitPollTimer) {
+      window.clearInterval(this.hitPollTimer);
+      this.hitPollTimer = null;
+    }
     if (this.timer) {
       window.clearInterval(this.timer);
       this.timer = null;

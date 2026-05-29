@@ -1,7 +1,9 @@
+import { MotionItem } from "@/components/friday/Motion";
 import { ApprovalCard } from "@/components/friday/ApprovalCard";
 import { CommandBlock } from "@/components/friday/CommandBlock";
 import { FileChangeCard } from "@/components/friday/FileChangeCard";
 import { ToolEventCard } from "@/components/friday/ToolEventCard";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatTime } from "@/lib/time";
 import {
   useActivePendingApproval,
@@ -13,85 +15,97 @@ export function SessionTimeline() {
   const pendingApproval = useActivePendingApproval();
 
   return (
-    <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+    <div className="motion-stagger flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
       {timeline.map((item, idx) => {
         const key = `${item.kind}-${item.timestamp}-${idx}`;
         switch (item.kind) {
           case "message":
             return (
-              <div key={key} className="text-sm">
-                <div className="mb-1 text-xs text-zinc-500">
+              <MotionItem key={key} className="text-sm">
+                <div className="mb-1 text-xs text-muted-foreground">
                   {item.role} · {formatTime(item.timestamp)}
                 </div>
                 <div
                   className={
                     item.role === "user"
-                      ? "rounded-lg bg-indigo-600/20 px-3 py-2 text-zinc-100"
-                      : "rounded-lg bg-zinc-800/80 px-3 py-2 text-zinc-200"
+                      ? "rounded-lg border border-border bg-muted/80 px-3 py-2 text-foreground"
+                      : "rounded-lg bg-muted px-3 py-2 text-foreground"
                   }
                 >
                   {item.content}
                 </div>
-              </div>
+              </MotionItem>
             );
           case "tool":
             return (
+              <MotionItem key={key}>
               <ToolEventCard
-                key={key}
                 toolName={item.toolName}
                 title={item.title}
               />
+              </MotionItem>
             );
           case "command":
             return (
+              <MotionItem key={key}>
               <CommandBlock
-                key={key}
                 command={item.command}
                 risk={item.risk}
               />
+              </MotionItem>
             );
           case "file":
             return (
+              <MotionItem key={key}>
               <FileChangeCard
-                key={key}
                 path={item.path}
                 action={item.action}
               />
+              </MotionItem>
             );
           case "approval":
             return (
+              <MotionItem key={key}>
               <ApprovalCard
-                key={key}
                 approvalId={item.approvalId}
                 command={item.command}
                 risk={item.risk}
               />
+              </MotionItem>
             );
           case "status":
             if (!item.message) return null;
             return (
-              <div key={key} className="text-xs italic text-zinc-500">
+              <MotionItem key={key} className="text-xs italic text-muted-foreground">
                 {item.message}
-              </div>
+              </MotionItem>
             );
           case "artifact":
             return (
-              <div key={key} className="rounded border border-zinc-800 px-3 py-2 text-sm">
-                <span className="text-zinc-400">Artifact</span> {item.title}
-              </div>
+              <MotionItem key={key}>
+              <Card>
+                <CardContent className="py-3 text-sm">
+                  <span className="text-muted-foreground">Artifact</span> {item.title}
+                </CardContent>
+              </Card>
+              </MotionItem>
             );
           case "pr":
             return (
-              <div key={key} className="rounded border border-zinc-800 px-3 py-2 text-sm">
-                <a
-                  href={item.prUrl}
-                  className="text-indigo-300 hover:underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {item.prUrl}
-                </a>
-              </div>
+              <MotionItem key={key}>
+              <Card>
+                <CardContent className="py-3 text-sm">
+                  <a
+                    href={item.prUrl}
+                    className="text-foreground underline underline-offset-2"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {item.prUrl}
+                  </a>
+                </CardContent>
+              </Card>
+              </MotionItem>
             );
           default:
             return null;
@@ -99,11 +113,13 @@ export function SessionTimeline() {
       })}
 
       {pendingApproval && (
-        <ApprovalCard
-          approvalId={pendingApproval.approvalId}
-          command={pendingApproval.command}
-          risk={pendingApproval.risk}
-        />
+        <MotionItem>
+          <ApprovalCard
+            approvalId={pendingApproval.approvalId}
+            command={pendingApproval.command}
+            risk={pendingApproval.risk}
+          />
+        </MotionItem>
       )}
     </div>
   );

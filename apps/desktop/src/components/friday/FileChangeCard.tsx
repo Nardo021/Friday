@@ -1,3 +1,5 @@
+import { FilePenLine } from "lucide-react";
+
 import { Card, CardContent } from "@/components/ui/card";
 import type { FileAction } from "@friday/agent-core";
 
@@ -10,9 +12,12 @@ export function FileChangeCard({
 }) {
   return (
     <Card>
-      <CardContent className="pt-4 text-sm">
-        <span className="text-zinc-400">{action}</span>{" "}
-        <span className="font-mono text-zinc-200">{path}</span>
+      <CardContent className="flex items-start gap-2 pt-4 text-sm">
+        <FilePenLine className="mt-0.5 shrink-0 text-muted-foreground" />
+        <span>
+          <span className="text-muted-foreground">{action}</span>{" "}
+          <span className="font-mono text-foreground">{path}</span>
+        </span>
       </CardContent>
     </Card>
   );

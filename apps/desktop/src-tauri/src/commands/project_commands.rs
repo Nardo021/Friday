@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tauri::State;
 
 use crate::core::event::Project;
@@ -6,7 +8,7 @@ use crate::storage::ProjectsRepo;
 
 #[tauri::command]
 pub fn add_project(
-    core: State<'_, AgentCore>,
+    core: State<'_, Arc<AgentCore>>,
     name: String,
     path: String,
     trusted: bool,
@@ -15,13 +17,15 @@ pub fn add_project(
 }
 
 #[tauri::command]
-pub fn list_projects(core: State<'_, AgentCore>) -> Result<Vec<Project>, crate::errors::AppError> {
+pub fn list_projects(
+    core: State<'_, Arc<AgentCore>>,
+) -> Result<Vec<Project>, crate::errors::AppError> {
     ProjectsRepo::new(&core.db).list()
 }
 
 #[tauri::command]
 pub fn get_project(
-    core: State<'_, AgentCore>,
+    core: State<'_, Arc<AgentCore>>,
     project_id: String,
 ) -> Result<Project, crate::errors::AppError> {
     ProjectsRepo::new(&core.db).get(&project_id)

@@ -1,12 +1,14 @@
 import { create } from "zustand";
 
 import type { AdapterInfo, FridaySettings } from "@friday/agent-core";
+import { invokeErrorMessage } from "@/lib/invokeError";
 import { getSettings, listAdapters, saveSettings } from "@/lib/tauri";
+import { toast } from "sonner";
 
 const defaultSettings: FridaySettings = {
   appearance: {
     theme: "system",
-    accentColor: "#6366f1",
+    accentColor: "#c9a227",
     petScale: 1,
     reducedMotion: false,
   },
@@ -66,14 +68,24 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   adapters: [],
   loaded: false,
   load: async () => {
-    const [settings, adapters] = await Promise.all([
-      getSettings(),
-      listAdapters(),
-    ]);
-    set({ settings, adapters, loaded: true });
+    try {
+      const [settings, adapters] = await Promise.all([
+        getSettings(),
+        listAdapters(),
+      ]);
+      set({ settings, adapters, loaded: true });
+    } catch (e) {
+      toast.error(invokeErrorMessage(e));
+      throw e;
+    }
   },
   update: async (settings) => {
-    await saveSettings(settings);
-    set({ settings });
+    try {
+      await saveSettings(settings);
+      set({ settings });
+    } catch (e) {
+      toast.error(invokeErrorMessage(e));
+      throw e;
+    }
   },
 }));

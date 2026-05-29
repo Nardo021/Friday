@@ -1,3 +1,5 @@
+import { Check, ShieldAlert, X } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,22 +16,25 @@ export function ApprovalCard({
   risk: RiskLevel;
 }) {
   return (
-    <Card className="border-amber-700/50">
-      <CardContent className="space-y-3 pt-4">
+    <Card className="border-destructive/40">
+      <CardContent className="flex flex-col gap-3 pt-4">
         <div className="flex items-center justify-between">
-          <span className="font-medium text-amber-200">Approval required</span>
-          <Badge variant={risk === "high" ? "danger" : "warning"}>{risk}</Badge>
+          <span className="flex items-center gap-1.5 font-medium">
+            <ShieldAlert />
+            Approval required
+          </span>
+          <Badge variant={risk === "high" ? "destructive" : "outline"}>
+            {risk}
+          </Badge>
         </div>
         {command && (
-          <pre className="overflow-x-auto rounded bg-zinc-950 p-2 text-xs">
+          <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs">
             {command}
           </pre>
         )}
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            onClick={() => approveCommand(approvalId)}
-          >
+          <Button size="sm" onClick={() => approveCommand(approvalId)}>
+            <Check data-icon="inline-start" />
             Approve
           </Button>
           <Button
@@ -37,6 +42,7 @@ export function ApprovalCard({
             variant="destructive"
             onClick={() => rejectCommand(approvalId)}
           >
+            <X data-icon="inline-start" />
             Reject
           </Button>
         </div>

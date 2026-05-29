@@ -1,14 +1,32 @@
 import { useEffect, useState } from "react";
+import { Lightbulb, ListTodo, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
+import { MotionStagger } from "@/components/friday/Motion";
 import { Button } from "@/components/ui/button";
-import { deleteIdea, listIdeas, openPanel, type Idea } from "@/lib/tauri";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { usePanelNavigation } from "@/hooks/usePanelNavigation";
+import { invokeErrorMessage } from "@/lib/invokeError";
+import { deleteIdea, listIdeas, type Idea } from "@/lib/tauri";
+import { UX } from "@/lib/ux";
 import { useSessionStore } from "@/state/useSessionStore";
 
 export function IdeasPage() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const setSelectedProject = useSessionStore((s) => s.setSelectedProject);
+  const { goToAgent } = usePanelNavigation();
 
-  const load = () => void listIdeas().then(setIdeas);
+  const load = () =>
+    void listIdeas()
+      .then(setIdeas)
+      .catch((e) => toast.error(invokeErrorMessage(e)));
 
   useEffect(() => {
     load();
@@ -16,41 +34,61 @@ export function IdeasPage() {
 
   const convertToTask = (idea: Idea) => {
     if (idea.projectId) setSelectedProject(idea.projectId);
-    void openPanel();
+    goToAgent();
+    toast.success("Opened agent — paste or edit your prompt");
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-medium">Ideas</h2>
-      <p className="text-sm text-zinc-400">
-        Quick captures from Quick Bubble (prefix with 记一下 or save idea).
-      </p>
-      <div className="space-y-2">
-        {ideas.length === 0 && (
-          <p className="text-sm text-zinc-500">No ideas yet.</p>
-        )}
-        {ideas.map((idea) => (
-          <div
-            key={idea.id}
-            className="rounded-lg border border-zinc-800 px-4 py-3"
-          >
-            <div className="font-medium text-zinc-100">{idea.title}</div>
-            <p className="mt-1 text-sm text-zinc-400">{idea.body}</p>
-            <div className="mt-2 flex gap-2">
-              <Button size="sm" onClick={() => convertToTask(idea)}>
-                Convert to task
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void deleteIdea(idea.id).then(load)}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className={UX.page}>
+      {ideas.length === 0 ? (
+        <Empty className="rounded-lg border border-dashed py-10">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Lightbulb />
+            </EmptyMedia>
+            <EmptyTitle className="text-sm font-normal">No ideas yet</EmptyTitle>
+            <EmptyDescription className="text-xs">
+              In Quick Chat, prefix a note with 记一下 or use “save idea” to capture
+              it here.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <MotionStagger className="flex flex-col gap-3">
+          {ideas.map((idea) => (
+            <li key={idea.id}>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{idea.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {idea.body}
+                  </p>
+                </CardContent>
+                <CardFooter className="gap-2 pt-0">
+                  <Button size="sm" onClick={() => convertToTask(idea)}>
+                    <ListTodo data-icon="inline-start" />
+                    Open in agent
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      void deleteIdea(idea.id)
+                        .then(load)
+                        .catch((e) => toast.error(invokeErrorMessage(e)))
+                    }
+                  >
+                    <Trash2 data-icon="inline-start" />
+                    Delete
+                  </Button>
+                </CardFooter>
+              </Card>
+            </li>
+          ))}
+        </MotionStagger>
+      )}
     </div>
   );
 }

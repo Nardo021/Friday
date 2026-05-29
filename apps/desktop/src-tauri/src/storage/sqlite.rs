@@ -16,6 +16,10 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(path).map_err(|e| AppError::Storage(e.to_string()))?;
+        conn.busy_timeout(std::time::Duration::from_millis(5_000))
+            .map_err(|e| AppError::Storage(e.to_string()))?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+            .map_err(|e| AppError::Storage(e.to_string()))?;
         Ok(Self {
             conn: Mutex::new(conn),
         })

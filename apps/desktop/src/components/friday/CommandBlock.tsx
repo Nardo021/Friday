@@ -1,3 +1,5 @@
+import { Terminal } from "lucide-react";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { RiskLevel } from "@friday/agent-core";
@@ -11,12 +13,17 @@ export function CommandBlock({
 }) {
   return (
     <Card>
-      <CardContent className="space-y-2 pt-4 text-sm">
+      <CardContent className="flex flex-col gap-2 pt-4 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-zinc-400">Command</span>
-          <Badge variant={risk === "high" ? "danger" : "warning"}>{risk}</Badge>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Terminal />
+            Command
+          </span>
+          <Badge variant={risk === "high" ? "destructive" : "outline"}>
+            {risk}
+          </Badge>
         </div>
-        <pre className="overflow-x-auto rounded bg-zinc-950 p-2 text-xs text-zinc-200">
+        <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs">
           {command}
         </pre>
       </CardContent>

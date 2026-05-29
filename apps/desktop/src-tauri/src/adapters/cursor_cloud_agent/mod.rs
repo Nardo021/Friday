@@ -166,7 +166,7 @@ impl AgentAdapter for CursorCloudAgentAdapter {
         input: CreateSessionInput,
         ctx: &AdapterContext,
     ) -> AppResult<FridaySession> {
-        let remote_url = resolve_remote_url(&input.cwd, &ctx.db, &input.project_id)?;
+        let remote_url = resolve_remote_url(&input.cwd, &ctx.db, &input.project_id).await?;
         let branch = crate::discovery::git_info::git_branch_with_timeout(
             std::path::Path::new(&input.cwd),
             std::time::Duration::from_secs(2),
@@ -325,7 +325,7 @@ impl AgentAdapter for CursorCloudAgentAdapter {
     }
 }
 
-fn resolve_remote_url(
+async fn resolve_remote_url(
     cwd: &str,
     db: &Arc<crate::storage::Database>,
     project_id: &str,
@@ -340,13 +340,23 @@ fn resolve_remote_url(
         }
     }
 
-    git_remote_origin_url(std::path::Path::new(cwd))
-        .map(|u| normalize_github_url(&u))
-        .ok_or_else(|| {
-            AppError::Other(
-                "No GitHub remote URL found. Add a project with git remote origin or set remote_url.".into(),
-            )
-        })
+    if let Some(url) = git_remote_origin_url(std::path::Path::new(cwd)) {
+        return Ok(normalize_github_url(&url));
+    }
+
+    let client = CursorCloudClient::new()?;
+    let repos = client.list_repository_urls().await?;
+    if let Some(url) = repos.into_iter().next() {
+        let normalized = normalize_github_url(&url);
+        let _ = ProjectsRepo::new(db).update_remote_url(project_id, &normalized);
+        return Ok(normalized);
+    }
+
+    Err(AppError::Other(
+        "No GitHub repository for Cloud agent. Link a repo in cursor.com/dashboard \
+         or add a project with git remote origin in Panel → Projects."
+            .into(),
+    ))
 }
 
 fn normalize_github_url(url: &str) -> String {

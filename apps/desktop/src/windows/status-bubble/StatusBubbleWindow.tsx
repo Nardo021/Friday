@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { StatusPill } from "@/components/friday/StatusPill";
+import { Card, CardContent } from "@/components/ui/card";
 import { useAgentEventBridge } from "@/hooks/useAgentEventBridge";
 import { statusBubbleText } from "@/pet-engine/AgentMoodMapper";
 import {
@@ -30,14 +31,16 @@ export function StatusBubbleWindow() {
 
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-transparent p-2">
-      <div className="w-full rounded-lg border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
-        {session && (
-          <div className="mb-1">
-            <StatusPill status={session.status} />
-          </div>
-        )}
-        <p className="truncate text-zinc-300">{text}</p>
-      </div>
+      <Card className="motion-popover-in w-full bg-popover/95 py-0 shadow-xl backdrop-blur">
+        <CardContent className="px-3 py-2 text-xs">
+          {session && (
+            <div className="mb-1">
+              <StatusPill status={session.status} />
+            </div>
+          )}
+          <p className="truncate text-foreground">{text}</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

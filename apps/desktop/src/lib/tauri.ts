@@ -13,8 +13,12 @@ import type {
 } from "@friday/agent-core";
 import { AGENT_EVENT_CHANNEL } from "@friday/agent-core";
 
+import { usePanelPageStore } from "@/state/usePanelPageStore";
+import type { PanelPageId } from "@/windows/panel/PanelNav";
+
 export interface CreateSessionInput {
-  projectId: string;
+  /** Empty = general workspace (home directory), no repo required. */
+  projectId?: string;
   prompt: string;
   mode?: AgentMode;
   type?: AgentSessionType;
@@ -32,7 +36,7 @@ export async function createSession(
 ): Promise<FridaySession> {
   return invoke("create_session", {
     sessionType: input.type ?? "friday_owned_cli",
-    projectId: input.projectId,
+    projectId: input.projectId ?? "",
     prompt: input.prompt,
   });
 }
@@ -119,16 +123,19 @@ export async function listAdapters(): Promise<AdapterInfo[]> {
   return invoke("list_adapters");
 }
 
-export async function openPanel(): Promise<void> {
+export async function openPanel(page?: PanelPageId): Promise<void> {
+  if (page) usePanelPageStore.getState().setPage(page);
   return invoke("open_panel");
 }
 
+/** Opens quick chat, or hides it if already visible (pet click / shortcut). */
 export async function openQuickBubble(): Promise<void> {
   return invoke("open_quick_bubble");
 }
 
-export async function openCommandCenter(): Promise<void> {
-  return invoke("open_command_center");
+/** @deprecated Use openPanel(page) — command center is merged into panel. */
+export async function openCommandCenter(page?: PanelPageId): Promise<void> {
+  return openPanel(page);
 }
 
 export async function showWindow(label: string): Promise<void> {
@@ -215,6 +222,10 @@ export async function saveCursorApiKey(apiKey: string): Promise<void> {
   return invoke("save_cursor_api_key", { apiKey });
 }
 
+export async function verifyCursorApiKey(apiKey: string): Promise<void> {
+  return invoke("verify_cursor_api_key", { apiKey });
+}
+
 export async function clearCursorApiKey(): Promise<void> {
   return invoke("clear_cursor_api_key");
 }
@@ -233,6 +244,10 @@ export async function openOnboarding(): Promise<void> {
 
 export async function hideWindow(label: string): Promise<void> {
   return invoke("hide_window", { label });
+}
+
+export async function petSurfaceReady(): Promise<void> {
+  return invoke("pet_surface_ready");
 }
 
 export type QuickIntentKind =

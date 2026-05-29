@@ -40,7 +40,7 @@ pub fn build_command(
     validate_executable(&executable)?;
 
     let mut args = Vec::new();
-    for template in &settings.arg_templates {
+    for template in &settings.arg_templates.headless_stream {
         let rendered = template
             .replace("{prompt}", prompt)
             .replace("{cwd}", cwd)

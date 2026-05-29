@@ -1,18 +1,22 @@
+use std::sync::Arc;
+
 use tauri::State;
 
-use crate::core::AgentCore;use crate::storage::local_data::{
-    local_data_dir_display, schedule_wipe_on_restart,
-};use crate::storage::settings_repo::FridaySettings;
+use crate::core::AgentCore;
+use crate::storage::local_data::{local_data_dir_display, schedule_wipe_on_restart};
+use crate::storage::settings_repo::FridaySettings;
 use crate::storage::SettingsRepo;
 
 #[tauri::command]
-pub fn get_settings(core: State<'_, AgentCore>) -> Result<FridaySettings, crate::errors::AppError> {
+pub fn get_settings(
+    core: State<'_, Arc<AgentCore>>,
+) -> Result<FridaySettings, crate::errors::AppError> {
     SettingsRepo::new(&core.db).get()
 }
 
 #[tauri::command]
 pub fn save_settings(
-    core: State<'_, AgentCore>,
+    core: State<'_, Arc<AgentCore>>,
     app: tauri::AppHandle,
     settings: FridaySettings,
 ) -> Result<(), crate::errors::AppError> {
@@ -26,11 +30,23 @@ pub fn save_settings(
 }
 
 #[tauri::command]
-pub fn save_cursor_api_key(
-    core: State<'_, AgentCore>,
+pub async fn save_cursor_api_key(
+    core: State<'_, Arc<AgentCore>>,
     api_key: String,
 ) -> Result<(), crate::errors::AppError> {
-    SettingsRepo::new(&core.db).save_cursor_api_key(&api_key)
+    let trimmed = api_key.trim();
+    crate::security::SecretStore::validate_cursor_api_key(trimmed)?;
+    crate::adapters::cursor_cloud_agent::client::CursorCloudClient::verify_api_key(trimmed).await?;
+    SettingsRepo::new(&core.db).save_cursor_api_key(trimmed)?;
+    core.reload_settings_cache()?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn verify_cursor_api_key(api_key: String) -> Result<(), crate::errors::AppError> {
+    let trimmed = api_key.trim();
+    crate::security::SecretStore::validate_cursor_api_key(trimmed)?;
+    crate::adapters::cursor_cloud_agent::client::CursorCloudClient::verify_api_key(trimmed).await
 }
 
 #[tauri::command]
@@ -39,8 +55,12 @@ pub fn get_local_data_path() -> Result<String, crate::errors::AppError> {
 }
 
 #[tauri::command]
-pub fn clear_cursor_api_key(core: State<'_, AgentCore>) -> Result<(), crate::errors::AppError> {
-    SettingsRepo::new(&core.db).clear_cursor_api_key()
+pub fn clear_cursor_api_key(
+    core: State<'_, Arc<AgentCore>>,
+) -> Result<(), crate::errors::AppError> {
+    SettingsRepo::new(&core.db).clear_cursor_api_key()?;
+    core.reload_settings_cache()?;
+    Ok(())
 }
 
 #[tauri::command]

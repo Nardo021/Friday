@@ -1,10 +1,24 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-
 import {
-  openCommandCenter,
-  openPanel,
-  openQuickBubble,
-} from "@/lib/tauri";
+  EyeOff,
+  MessageSquare,
+  PanelTop,
+  type LucideIcon,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { openPanel, openQuickBubble } from "@/lib/tauri";
+
+const MENU_ITEMS: {
+  label: string;
+  icon: LucideIcon;
+  action: () => void;
+}[] = [
+  { label: "Quick chat", icon: MessageSquare, action: () => void openQuickBubble() },
+  { label: "Open panel", icon: PanelTop, action: () => void openPanel() },
+  { label: "Hide pet", icon: EyeOff, action: () => void getCurrentWindow().hide() },
+];
 
 export function PetContextMenu({
   x,
@@ -15,16 +29,14 @@ export function PetContextMenu({
   y: number;
   onClose: () => void;
 }) {
-  const items = [
-    { label: "Quick chat", action: () => void openQuickBubble() },
-    { label: "Open panel", action: () => void openPanel() },
-    { label: "Command center", action: () => void openCommandCenter() },
-    { label: "Hide pet", action: () => void getCurrentWindow().hide() },
-  ];
-
-  const menuWidth = 132;
+  const menuWidth = 116;
+  const rowHeight = 24;
+  const menuPad = 4;
   const left = Math.min(x, window.innerWidth - menuWidth - 4);
-  const top = Math.min(y, window.innerHeight - items.length * 28 - 8);
+  const top = Math.min(
+    y,
+    window.innerHeight - MENU_ITEMS.length * rowHeight - menuPad * 2 - 4,
+  );
 
   return (
     <>
@@ -39,23 +51,31 @@ export function PetContextMenu({
         }}
       />
       <div
-        className="fixed z-50 w-[132px] overflow-hidden rounded-md border border-zinc-700/90 bg-zinc-900/95 py-0.5 shadow-lg backdrop-blur-sm"
+        className={cn(
+          "motion-popover-in fixed z-50 w-[116px] overflow-hidden rounded-md border bg-popover p-0.5 text-popover-foreground shadow-md backdrop-blur-sm",
+        )}
         style={{ left, top }}
         onContextMenu={(event) => event.preventDefault()}
       >
-        {items.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            className="block w-full px-2.5 py-1 text-left text-[11px] leading-tight text-zinc-200 hover:bg-zinc-800"
-            onClick={() => {
-              item.action();
-              onClose();
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
+        {MENU_ITEMS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Button
+              key={item.label}
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="motion-hover h-6 w-full justify-start gap-1.5 rounded-sm px-1.5 text-[11px] font-normal [&_svg]:size-3"
+              onClick={() => {
+                item.action();
+                onClose();
+              }}
+            >
+              <Icon aria-hidden />
+              {item.label}
+            </Button>
+          );
+        })}
       </div>
     </>
   );

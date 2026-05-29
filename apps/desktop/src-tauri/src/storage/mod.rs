@@ -7,6 +7,7 @@ mod messages_repo;
 pub mod projects_repo;
 pub mod queued_instructions_repo;
 pub mod sessions_repo;
+pub mod secret_sqlite;
 pub mod settings_repo;
 pub mod sqlite;
 

@@ -1,25 +1,54 @@
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSessionStore } from "@/state/useSessionStore";
 
-export function RepoSelector() {
+export function RepoSelector({ optional = false }: { optional?: boolean }) {
   const projects = useSessionStore((s) => s.projects);
   const selectedProjectId = useSessionStore((s) => s.selectedProjectId);
   const setSelectedProject = useSessionStore((s) => s.setSelectedProject);
 
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-zinc-500">Repository</label>
-      <select
-        className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
-        value={selectedProjectId ?? ""}
-        onChange={(e) => setSelectedProject(e.target.value || null)}
+    <Field>
+      <FieldLabel htmlFor="repo-select">
+        {optional ? "Working folder" : "Repository"}
+      </FieldLabel>
+      {optional && (
+        <FieldDescription>
+          Leave unset to use your home directory. Pick a repo when the agent
+          should run inside a specific codebase.
+        </FieldDescription>
+      )}
+      <Select
+        value={selectedProjectId ?? "__general__"}
+        onValueChange={(v) =>
+          setSelectedProject(v === "__general__" ? null : v || null)
+        }
       >
-        <option value="">Select project...</option>
-        {projects.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
-    </div>
+        <SelectTrigger id="repo-select" className="w-full">
+          <SelectValue
+            placeholder={optional ? "General (no repo)" : "Select project…"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {optional && (
+              <SelectItem value="__general__">General — no repo</SelectItem>
+            )}
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }

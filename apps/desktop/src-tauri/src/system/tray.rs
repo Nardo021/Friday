@@ -11,7 +11,6 @@ pub fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Erro
     let new_task = MenuItem::with_id(app, "new_task", "New Cursor Task", true, None::<&str>)?;
     let stop_task = MenuItem::with_id(app, "stop_task", "Stop Current Task", true, None::<&str>)?;
     let open_panel = MenuItem::with_id(app, "open_panel", "Open Panel", true, None::<&str>)?;
-    let open_cc = MenuItem::with_id(app, "open_cc", "Command Center", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Friday", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
@@ -22,7 +21,6 @@ pub fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Erro
             &new_task,
             &stop_task,
             &open_panel,
-            &open_cc,
             &quit,
         ],
     )?;
@@ -58,9 +56,6 @@ pub fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Erro
             }
             "open_panel" => {
                 let _ = crate::system::window_manager::open_panel(app);
-            }
-            "open_cc" => {
-                let _ = crate::system::window_manager::open_command_center(app);
             }
             "quit" => {
                 app.exit(0);

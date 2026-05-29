@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 const variantMap: Record<
   FridaySessionStatus,
-  "default" | "secondary" | "success" | "warning" | "danger"
+  "default" | "secondary" | "destructive" | "outline"
 > = {
   discovered: "secondary",
   idle: "secondary",
@@ -13,11 +13,11 @@ const variantMap: Record<
   thinking: "default",
   reading: "default",
   editing: "default",
-  running_command: "warning",
-  waiting_permission: "warning",
+  running_command: "outline",
+  waiting_permission: "outline",
   testing: "default",
-  done: "success",
-  error: "danger",
+  done: "default",
+  error: "destructive",
   stopped: "secondary",
 };
 
@@ -29,7 +29,7 @@ export function StatusPill({
   className?: string;
 }) {
   return (
-    <Badge variant={variantMap[status]} className={cn(className)}>
+    <Badge variant={variantMap[status]} className={cn("motion-feedback", className)}>
       {STATUS_LABELS[status]}
     </Badge>
   );

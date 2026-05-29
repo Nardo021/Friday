@@ -14,8 +14,18 @@ pub async fn create_session(
     prompt: String,
 ) -> Result<FridaySession, crate::errors::AppError> {
     let session_type = parse_session_type(&session_type)?;
-    core.create_session(app, session_type, project_id, prompt)
+    match core
+        .create_session(app.clone(), session_type, project_id, prompt)
         .await
+    {
+        Ok(session) => Ok(session),
+        Err(e) => {
+            let _ = core
+                .emit_visible_user_error(&app, None, &e.to_string())
+                .await;
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]

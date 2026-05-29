@@ -136,4 +136,17 @@ impl<'a> ProjectsRepo<'a> {
             Ok(project.remote_url)
         }
     }
+
+    /// Default workspace when the user has not picked a repo (chat-first).
+    pub fn get_or_create_general_workspace(&self) -> AppResult<Project> {
+        let path = dirs::home_dir()
+            .ok_or_else(|| AppError::Other("cannot resolve home directory".into()))?;
+        let path_str = path.to_string_lossy().to_string();
+        for project in self.list()? {
+            if project.path == path_str {
+                return Ok(project);
+            }
+        }
+        self.add("General", &path_str, true)
+    }
 }

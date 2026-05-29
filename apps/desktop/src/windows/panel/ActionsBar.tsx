@@ -9,9 +9,13 @@ import {
   type FridaySession,
 } from "@friday/agent-core";
 
+import { ScrollText, Square } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { closeSession, followUp, openCommandCenter } from "@/lib/tauri";
+import { closeSession, followUp, openPanel } from "@/lib/tauri";
+import { usePanelPageStore } from "@/state/usePanelPageStore";
 import {
   useActivePendingApproval,
   useActiveSession,
@@ -57,20 +61,23 @@ export function ActionsBar() {
   };
 
   return (
-    <div className="border-t border-zinc-800 p-4">
+    <div className="border-t border-border p-4">
       {pendingApproval && (
-        <p className="mb-2 text-xs text-amber-300">
+        <p className="mb-2 text-xs text-destructive">
           Pending approval: {pendingApproval.title ?? pendingApproval.command}
         </p>
       )}
       {caps.canSendFollowUp && (
-        <div className="mb-3 flex gap-2">
-          <Input
-            value={followUpText}
-            onChange={(e) => setFollowUpText(e.target.value)}
-            placeholder="Follow up..."
-            disabled={!running || busy}
-          />
+        <div className="mb-3 flex items-end gap-2">
+          <Field className="min-w-0 flex-1">
+            <FieldLabel htmlFor="panel-follow-up">Follow up</FieldLabel>
+            <Input
+              id="panel-follow-up"
+              value={followUpText}
+              onChange={(e) => setFollowUpText(e.target.value)}
+              disabled={!running || busy}
+            />
+          </Field>
           <Button
             size="sm"
             onClick={() => void handleFollowUp()}
@@ -83,11 +90,20 @@ export function ActionsBar() {
       <div className="flex flex-wrap gap-2">
         {caps.canStop && running && (
           <Button size="sm" variant="destructive" onClick={() => void handleStop()}>
+            <Square data-icon="inline-start" className="fill-current" />
             Stop
           </Button>
         )}
         {caps.canObserve && (
-          <Button size="sm" variant="secondary" onClick={() => void openCommandCenter()}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              usePanelPageStore.getState().setPage("logs");
+              void openPanel();
+            }}
+          >
+            <ScrollText data-icon="inline-start" />
             Logs
           </Button>
         )}

@@ -1,4 +1,6 @@
-import { MOOD_EMOJI, type PetMood } from "@friday/agent-core";
+import type { PetMood } from "@friday/agent-core";
+
+import { PET_MOOD_ICON } from "@/lib/pet-mood-icons";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/state/useSettingsStore";
 
@@ -11,17 +13,21 @@ const MOOD_LABEL: Record<PetMood, string> = {
   satisfied: "Done",
 };
 
-const MOOD_MOTION: Partial<Record<PetMood, string>> = {
-  calm: "animate-pulse",
-  working: "animate-bounce",
-  stressed: "animate-pulse",
+/** Static affordance — no ambient pulse/bounce (b.md productivity canvas). */
+const MOOD_RING: Partial<Record<PetMood, string>> = {
+  focused: "ring-2 ring-primary/40",
+  working: "ring-2 ring-primary/60",
+  asking: "ring-2 ring-amber-500/60",
+  stressed: "ring-2 ring-destructive/70",
+  satisfied: "ring-2 ring-emerald-500/50",
 };
 
 export function PetSprite({ mood }: { mood: PetMood }) {
-  const reducedMotion = useSettingsStore(
-    (s) => s.settings.appearance.reducedMotion,
+  const petScale = Math.max(
+    0.5,
+    useSettingsStore((s) => s.settings.appearance.petScale) || 1,
   );
-  const petScale = useSettingsStore((s) => s.settings.appearance.petScale);
+  const MoodIcon = PET_MOOD_ICON[mood];
 
   return (
     <div
@@ -30,12 +36,12 @@ export function PetSprite({ mood }: { mood: PetMood }) {
     >
       <div
         className={cn(
-          "flex h-24 w-24 select-none flex-col items-center justify-center rounded-full bg-indigo-600/30 text-4xl shadow-lg backdrop-blur-sm",
-          !reducedMotion && MOOD_MOTION[mood],
+          "flex size-24 select-none flex-col items-center justify-center gap-1 rounded-full bg-primary/25 shadow-lg backdrop-blur-sm",
+          MOOD_RING[mood],
         )}
       >
-        <span>{MOOD_EMOJI[mood]}</span>
-        <span className="mt-1 text-[10px] font-medium text-indigo-100">
+        <MoodIcon className="size-10 text-primary" strokeWidth={1.5} />
+        <span className="text-[10px] font-medium text-primary-foreground">
           {MOOD_LABEL[mood]}
         </span>
       </div>

@@ -23,13 +23,14 @@ export const STATUS_TO_MOOD: Record<FridaySessionStatus, PetMood> = {
   stopped: "calm",
 };
 
-export const MOOD_EMOJI: Record<PetMood, string> = {
-  calm: "😌",
-  focused: "🤔",
-  working: "⌨️",
-  asking: "🙋",
-  stressed: "😰",
-  satisfied: "🎉",
+/** Lucide icon names for pet mood UI — import matching icons from `lucide-react`. */
+export const PET_MOOD_LUCIDE_ICON: Record<PetMood, string> = {
+  calm: "moon",
+  focused: "brain",
+  working: "keyboard",
+  asking: "hand",
+  stressed: "triangle-alert",
+  satisfied: "circle-check",
 };
 
 export const STATUS_LABELS: Record<FridaySessionStatus, string> = {

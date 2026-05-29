@@ -13,7 +13,7 @@ mod voice;
 
 use std::sync::Arc;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use core::agent_core::AgentCore;
 use discovery::start_discovery_loop;
@@ -84,10 +84,12 @@ pub fn run() {
             );
 
             if settings.onboarding.completed {
-                let _ = system::window_manager::show_window(app.handle(), "pet");
+                // Pet window is shown after the React surface mounts (`pet_surface_ready`).
             } else {
                 let _ = system::window_manager::show_onboarding(app.handle());
             }
+
+            let _ = app.emit("friday://ready", ());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -123,6 +125,7 @@ pub fn run() {
             commands::settings_commands::get_settings,
             commands::settings_commands::save_settings,
             commands::settings_commands::save_cursor_api_key,
+            commands::settings_commands::verify_cursor_api_key,
             commands::settings_commands::clear_cursor_api_key,
             commands::settings_commands::get_local_data_path,            commands::settings_commands::clear_local_data,
             commands::bridge_commands::get_mobile_bridge_settings,
@@ -148,6 +151,7 @@ pub fn run() {
             commands::window_commands::hide_quick_bubble,
             commands::window_commands::finish_onboarding,
             commands::window_commands::open_onboarding,
+            commands::window_commands::pet_surface_ready,
             commands::adapter_commands::list_adapters,
         ])
         .run(tauri::generate_context!())

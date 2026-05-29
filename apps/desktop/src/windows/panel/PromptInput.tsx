@@ -1,23 +1,33 @@
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 export function PromptInput({
   value,
   onChange,
   disabled,
+  onSubmit,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  onSubmit?: () => void;
 }) {
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-zinc-500">Prompt</label>
+    <Field>
+      <FieldLabel htmlFor="panel-prompt">Message</FieldLabel>
       <Input
+        id="panel-prompt"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Describe what Friday should do..."
+        placeholder="Ask Friday anything…"
         disabled={disabled}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && onSubmit) {
+            e.preventDefault();
+            onSubmit();
+          }
+        }}
       />
-    </div>
+    </Field>
   );
 }

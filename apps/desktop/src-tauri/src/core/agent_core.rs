@@ -26,6 +26,9 @@ use crate::storage::{
 };
 use crate::storage::settings_repo::{CloudSettings, CursorSettings, FridaySettings};
 
+/// Timeline / UI bucket when no real session exists yet (e.g. quick-chat send failed).
+pub const SURFACE_SESSION_ID: &str = "friday-surface";
+
 pub struct AgentCore {
     pub session_manager: Mutex<SessionManager>,
     pub process_supervisor: Arc<ProcessSupervisor>,
@@ -87,6 +90,47 @@ impl AgentCore {
         Ok(())
     }
 
+    pub async fn feedback_session_id(&self, hint: Option<&str>) -> String {
+        if let Some(id) = hint {
+            if !id.is_empty() {
+                return id.to_string();
+            }
+        }
+        if let Some(session) = self.session_manager.lock().await.active_session() {
+            return session.id.clone();
+        }
+        SURFACE_SESSION_ID.to_string()
+    }
+
+    /// Push errors to all UI surfaces (pet mood, status bubble, quick chat timeline).
+    pub async fn emit_visible_user_error(
+        &self,
+        app: &AppHandle,
+        session_id_hint: Option<&str>,
+        error: &str,
+    ) -> AppResult<()> {
+        let session_id = self.feedback_session_id(session_id_hint).await;
+        let timestamp = now_iso();
+        emit_agent_event(
+            app,
+            &AgentEvent::SessionError {
+                session_id: session_id.clone(),
+                error: error.to_string(),
+                timestamp: timestamp.clone(),
+            },
+        )?;
+        emit_agent_event(
+            app,
+            &AgentEvent::AgentStatus {
+                session_id,
+                status: FridaySessionStatus::Error,
+                message: Some(error.to_string()),
+                timestamp,
+            },
+        )?;
+        Ok(())
+    }
+
     fn install_event_handler(&self, app: AppHandle) {
         let self_weak = self
             .self_weak
@@ -145,18 +189,24 @@ impl AgentCore {
             .await
             .ensure_can_create(session_type)?;
 
+        let projects_repo = ProjectsRepo::new(&self.db);
+        let project = if project_id.trim().is_empty() {
+            projects_repo.get_or_create_general_workspace()?
+        } else {
+            projects_repo.get(&project_id)?
+        };
+        let effective_project_id = project.id.clone();
+
         let (cwd, adapter_id) = match session_type {
             AgentSessionType::FridayOwnedCli => {
-                let projects_repo = ProjectsRepo::new(&self.db);
-                let project = projects_repo.get(&project_id)?;
                 ProjectAllowlist::validate_path(&projects_repo, &project.path)?;
                 if !ProjectAllowlist::is_trusted(&project) {
                     return Err(AppError::ProjectNotAllowed(
                         "Project is not trusted".into(),
                     ));
                 }
-                projects_repo.touch(&project_id)?;
-                let _ = projects_repo.refresh_remote_url_from_git(&project_id);
+                projects_repo.touch(&effective_project_id)?;
+                let _ = projects_repo.refresh_remote_url_from_git(&effective_project_id);
                 let adapter_id = if project.default_adapter_id.is_empty() {
                     ADAPTER_CURSOR_CLI_LOCAL.to_string()
                 } else {
@@ -170,16 +220,14 @@ impl AgentCore {
                         "Cursor API key not configured. Add it in Settings.".into(),
                     ));
                 }
-                let projects_repo = ProjectsRepo::new(&self.db);
-                let project = projects_repo.get(&project_id)?;
                 ProjectAllowlist::validate_path(&projects_repo, &project.path)?;
                 if !ProjectAllowlist::is_trusted(&project) {
                     return Err(AppError::ProjectNotAllowed(
                         "Project is not trusted".into(),
                     ));
                 }
-                projects_repo.touch(&project_id)?;
-                let _ = projects_repo.refresh_remote_url_from_git(&project_id);
+                projects_repo.touch(&effective_project_id)?;
+                let _ = projects_repo.refresh_remote_url_from_git(&effective_project_id);
                 (project.path.clone(), ADAPTER_CURSOR_CLOUD_AGENT.to_string())
             }
             _ => {
@@ -194,12 +242,22 @@ impl AgentCore {
         let ctx = self.build_context(settings.cursor.clone(), settings.cloud.clone());
 
         let adapter = self.adapter_registry.get_adapter(&adapter_id)?;
+        emit_agent_event(
+            &app,
+            &AgentEvent::AgentStatus {
+                session_id: session_id.clone(),
+                status: FridaySessionStatus::Starting,
+                message: Some("Starting agent…".into()),
+                timestamp: now_iso(),
+            },
+        )?;
+
         let mut session = adapter
             .create_session(
                 CreateSessionInput {
                     session_id: session_id.clone(),
                     session_type,
-                    project_id: project_id.clone(),
+                    project_id: effective_project_id.clone(),
                     prompt: prompt.clone(),
                     cwd: cwd.clone(),
                     model: None,
@@ -208,7 +266,7 @@ impl AgentCore {
             )
             .await?;
 
-        if let Ok((repo, _branch)) = self.enrich_session_repo(&project_id, &cwd) {
+        if let Ok((repo, _branch)) = self.enrich_session_repo(&effective_project_id, &cwd) {
             session.repo = Some(repo);
         }
 

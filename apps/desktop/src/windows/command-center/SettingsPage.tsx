@@ -1,10 +1,27 @@
 import { useEffect, useState } from "react";
+import {
+  ClipboardCopy,
+  Link,
+  RefreshCw,
+  Save,
+  Smartphone,
+  Trash2,
+} from "lucide-react";
 
 import type { FridaySettings, MobileBridgeSettingsView } from "@friday/agent-core";
 
+import { ConfirmDialog } from "@/components/friday/ConfirmDialog";
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "sonner";
+import { invokeErrorMessage } from "@/lib/invokeError";
 import { saveCursorApiKey, clearCursorApiKey, clearLocalData, getLocalDataPath, saveSttApiKey, clearSttApiKey, getMobileBridgeSettings, updateMobileBridgeSettings, regenerateMobileBridgeToken } from "@/lib/tauri";
+import { cn } from "@/lib/utils";
+import { UX } from "@/lib/ux";
 import { useSettingsStore } from "@/state/useSettingsStore";
 
 function CursorApiKeyField({ configured }: { configured: boolean }) {
@@ -12,6 +29,7 @@ function CursorApiKeyField({ configured }: { configured: boolean }) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const save = async () => {
     if (!value.trim() || busy) return;
@@ -21,9 +39,20 @@ function CursorApiKeyField({ configured }: { configured: boolean }) {
       await saveCursorApiKey(value.trim());
       setValue("");
       await load();
-      setMessage("Saved.");
+      const ok = useSettingsStore.getState().settings.cursor.apiKeyConfigured;
+      if (!ok) {
+        const msg =
+          "Key was not stored on this device. Restart Friday and try again.";
+        setMessage(msg);
+        toast.error(msg);
+        return;
+      }
+      setMessage("Saved and verified with Cursor API.");
+      toast.success("Cursor API key saved. Use Cursor API mode in Quick Chat or Agent.");
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Failed to save key");
+      const msg = invokeErrorMessage(e);
+      setMessage(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -31,41 +60,77 @@ function CursorApiKeyField({ configured }: { configured: boolean }) {
 
   const remove = async () => {
     if (busy || !configured) return;
-    if (!window.confirm("Remove the stored Cursor API key from this device?")) return;
     setBusy(true);
     setMessage(null);
     try {
       await clearCursorApiKey();
       await load();
       setMessage("Removed.");
+      toast.success("Cursor API key removed");
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Failed to remove key");
+      const msg = invokeErrorMessage(e);
+      setMessage(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="space-y-2">
-      <Input
-        type="password"
-        placeholder={configured ? "Replace API key…" : "Paste Cursor API key…"}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        disabled={busy}
-      />
+    <>
+      <Field>
+        <FieldLabel htmlFor="cursor-api-key">API key</FieldLabel>
+        <Input
+          id="cursor-api-key"
+          type="password"
+          placeholder={configured ? "Replace Cursor API key…" : "crsr_… from Cursor dashboard"}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={busy}
+        />
+        <FieldDescription>
+          From{" "}
+          <a
+            href="https://cursor.com/dashboard"
+            className="text-foreground underline underline-offset-2 hover:text-foreground/80"
+            target="_blank"
+            rel="noreferrer"
+          >
+            cursor.com/dashboard
+          </a>{" "}
+          → Integrations → API Keys. Saved keys are verified against Cursor API
+          before storing. Use <strong className="font-medium text-foreground">Cursor API</strong>{" "}
+          mode in chat; Local CLI does not need this key.
+        </FieldDescription>
+      </Field>
       <div className="flex gap-2">
         <Button size="sm" disabled={busy || !value.trim()} onClick={() => void save()}>
+          <Save data-icon="inline-start" />
           Save API key
         </Button>
         {configured && (
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void remove()}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => setConfirmRemove(true)}
+          >
+            <Trash2 data-icon="inline-start" />
             Remove API key
           </Button>
         )}
       </div>
-      {message && <p className="text-xs text-zinc-400">{message}</p>}
-    </div>
+      {message && <p className="text-xs text-muted-foreground">{message}</p>}
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title="Remove Cursor API key?"
+        description="The stored Cursor API key will be removed from this device. Cloud Agent features will stop working until you add a key again."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={() => void remove()}
+      />
+    </>
   );
 }
 
@@ -143,27 +208,30 @@ function MobileRemoteSection() {
     return (
       <section>
         <h3 className="mb-2 font-medium">Mobile Remote</h3>
-        <p className="text-sm text-zinc-400">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </section>
     );
   }
 
   return (
     <section>
-      <h3 className="mb-2 font-medium">Mobile Remote</h3>
-      <p className="mb-3 text-sm text-zinc-400">
+      <h3 className="mb-2 flex items-center gap-2 font-medium">
+        <Smartphone />
+        Mobile Remote
+      </h3>
+      <p className="mb-3 text-sm text-muted-foreground">
         Allow the Friday iOS companion on your LAN to observe sessions, approve commands, and stop agents.
       </p>
-      <label className="mb-3 flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+      <div className="mb-3 flex items-center gap-2">
+        <Switch
+          id="mobile-bridge"
           checked={bridge.enabled}
           disabled={busy}
-          onChange={(e) => void toggle(e.target.checked)}
+          onCheckedChange={(v) => void toggle(v)}
         />
-        Enable mobile bridge
-      </label>
-      <label className="mb-1 block text-sm text-zinc-400">Port</label>
+        <Label htmlFor="mobile-bridge">Enable mobile bridge</Label>
+      </div>
+      <Label className="mb-1 block text-sm text-muted-foreground">Port</Label>
       <Input
         type="number"
         className="mb-3 max-w-[8rem]"
@@ -171,28 +239,31 @@ function MobileRemoteSection() {
         disabled={busy}
         onChange={(e) => void savePort(Number(e.target.value))}
       />
-      <p className="mb-1 text-sm text-zinc-400">Local URL</p>
+      <p className="mb-1 text-sm text-muted-foreground">Local URL</p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <code className="break-all rounded bg-zinc-900 px-2 py-1 text-xs">{bridge.localUrl}</code>
+        <code className="break-all rounded bg-muted px-2 py-1 text-xs">{bridge.localUrl}</code>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => void copyUrl()}>
+          <Link data-icon="inline-start" />
           Copy URL
         </Button>
       </div>
-      <p className="mb-1 text-sm text-zinc-400">Auth token</p>
+      <p className="mb-1 text-sm text-muted-foreground">Auth token</p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <code className="break-all rounded bg-zinc-900 px-2 py-1 text-xs">{bridge.authToken}</code>
+        <code className="break-all rounded bg-muted px-2 py-1 text-xs">{bridge.authToken}</code>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => void copyToken()}>
+          <ClipboardCopy data-icon="inline-start" />
           Copy token
         </Button>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => void regenToken()}>
+          <RefreshCw data-icon="inline-start" />
           Regenerate
         </Button>
       </div>
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-muted-foreground">
         In the mobile app, enter the URL and token above. Phone and desktop must be on the same Wi‑Fi.
-        See <span className="text-zinc-400">docs/MOBILE_REMOTE.md</span> for API details.
+        See <span className="text-muted-foreground">docs/MOBILE_REMOTE.md</span> for API details.
       </p>
-      {message && <p className="mt-2 text-xs text-zinc-400">{message}</p>}
+      {message && <p className="mt-2 text-xs text-muted-foreground">{message}</p>}
     </section>
   );
 }
@@ -200,25 +271,19 @@ function MobileRemoteSection() {
 function LocalDataSection() {
   const [path, setPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmWipe, setConfirmWipe] = useState(false);
 
   useEffect(() => {
     void getLocalDataPath().then(setPath);
   }, []);
 
   const wipe = async () => {
-    if (
-      busy ||
-      !window.confirm(
-        "Delete all local Friday data? This removes settings, sessions, projects, logs, and stored API keys. The app will restart.",
-      )
-    ) {
-      return;
-    }
+    if (busy) return;
     setBusy(true);
     try {
       await clearLocalData();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Failed to clear data");
+      toast.error(e instanceof Error ? e.message : "Failed to clear data");
       setBusy(false);
     }
   };
@@ -226,19 +291,34 @@ function LocalDataSection() {
   return (
     <section>
       <h3 className="mb-2 font-medium">Local data</h3>
-      <p className="mb-2 text-sm text-zinc-400">
+      <p className="mb-2 text-sm text-muted-foreground">
         Sessions, projects, and settings are stored on this device only.
       </p>
       {path && (
-        <p className="mb-3 break-all font-mono text-xs text-zinc-500">{path}</p>
+        <p className="mb-3 break-all font-mono text-xs text-muted-foreground">{path}</p>
       )}
-      <Button size="sm" variant="destructive" disabled={busy} onClick={() => void wipe()}>
+      <Button
+        size="sm"
+        variant="destructive"
+        disabled={busy}
+        onClick={() => setConfirmWipe(true)}
+      >
+        <Trash2 data-icon="inline-start" />
         Delete all local data
       </Button>
-      <p className="mt-2 text-xs text-zinc-500">
+      <p className="mt-2 text-xs text-muted-foreground">
         Uninstalling via Windows installer also offers a checkbox to remove local
         data.
       </p>
+      <ConfirmDialog
+        open={confirmWipe}
+        onOpenChange={setConfirmWipe}
+        title="Delete all local data?"
+        description="This removes settings, sessions, projects, logs, and stored API keys on this device. The app will restart."
+        confirmLabel="Delete everything"
+        destructive
+        onConfirm={() => void wipe()}
+      />
     </section>
   );
 }
@@ -247,14 +327,22 @@ function SttApiKeyField({ configured }: { configured: boolean }) {
   const load = useSettingsStore((s) => s.load);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   const save = async () => {
     if (!value.trim() || busy) return;
     setBusy(true);
+    setMessage(null);
     try {
       await saveSttApiKey(value.trim());
       setValue("");
       await load();
+      setMessage("Saved.");
+      toast.success("OpenAI key saved for voice");
+    } catch (e) {
+      const msg = invokeErrorMessage(e);
+      setMessage(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -263,9 +351,16 @@ function SttApiKeyField({ configured }: { configured: boolean }) {
   const remove = async () => {
     if (busy || !configured) return;
     setBusy(true);
+    setMessage(null);
     try {
       await clearSttApiKey();
       await load();
+      setMessage("Removed.");
+      toast.success("OpenAI key removed");
+    } catch (e) {
+      const msg = invokeErrorMessage(e);
+      setMessage(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -275,19 +370,24 @@ function SttApiKeyField({ configured }: { configured: boolean }) {
     <div className="flex flex-wrap gap-2">
       <Input
         type="password"
-        placeholder={configured ? "Replace STT key…" : "OpenAI API key…"}
+        placeholder={configured ? "Replace OpenAI key…" : "sk-… (OpenAI, voice only)"}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         disabled={busy}
         className="max-w-xs"
       />
       <Button size="sm" disabled={busy || !value.trim()} onClick={() => void save()}>
+        <Save data-icon="inline-start" />
         Save STT key
       </Button>
       {configured && (
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => void remove()}>
+          <Trash2 data-icon="inline-start" />
           Remove
         </Button>
+      )}
+      {message && (
+        <p className="w-full text-xs text-muted-foreground">{message}</p>
       )}
     </div>
   );
@@ -319,15 +419,24 @@ export function SettingsPage() {
     if (!loaded) load();
   }, [loaded, load]);
 
+  const headlessArgTemplates = Array.isArray(settings.cursor.argTemplates)
+    ? settings.cursor.argTemplates
+    : (settings.cursor.argTemplates?.headlessStream ?? []);
+
   useEffect(() => {
     if (loaded) {
-      setArgTemplateText(
-        formatArgTemplates(settings.cursor.argTemplates.headlessStream),
-      );
+      setArgTemplateText(formatArgTemplates(headlessArgTemplates));
     }
-  }, [loaded, settings.cursor.argTemplates.headlessStream]);
+  }, [loaded, headlessArgTemplates]);
 
-  if (!loaded) return <div className="text-zinc-400">Loading settings...</div>;
+  if (!loaded) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Spinner />
+        Loading settings…
+      </div>
+    );
+  }
 
   const patchCursor = (patch: Partial<FridaySettings["cursor"]>) =>
     update({
@@ -348,10 +457,15 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="max-w-xl space-y-6">
-      <section>
-        <h3 className="mb-2 font-medium">Appearance</h3>
-        <label className="mb-2 block text-sm text-zinc-400">Pet scale</label>
+    <div className={cn("flex max-w-xl flex-col", UX.page)}>
+      <section className={cn(UX.section, "motion-item-in")} data-od-id="settings-workspace">
+        <h3 className="text-base font-medium">Workspace</h3>
+        <p className="text-sm text-muted-foreground">
+          Pet, motion, and how Friday starts with your desktop.
+        </p>
+        <div className={cn("flex flex-col", UX.withinGroup)}>
+        <div>
+        <Label className="mb-2 block text-sm">Pet scale</Label>
         <Input
           type="number"
           step="0.1"
@@ -368,80 +482,97 @@ export function SettingsPage() {
             })
           }
         />
-      </section>
-
-      <section>
-        <h3 className="mb-2 font-medium">Security</h3>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.security.requireApprovalForHighRiskCommands}
-            onChange={(e) =>
+        <Field orientation="horizontal" className="mt-4">
+          <Switch
+            id="reduced-motion"
+            checked={settings.appearance.reducedMotion}
+            onCheckedChange={(v) =>
               update({
                 ...settings,
-                security: {
-                  ...settings.security,
-                  requireApprovalForHighRiskCommands: e.target.checked,
+                appearance: {
+                  ...settings.appearance,
+                  reducedMotion: v,
                 },
               })
             }
           />
-          Require approval for high-risk commands
-        </label>
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.security.redactSecrets}
-            onChange={(e) =>
+          <FieldLabel htmlFor="reduced-motion" className="font-normal">
+            Reduce motion
+          </FieldLabel>
+        </Field>
+        <FieldDescription>
+          Minimizes movement and uses color-only state cues (matches system
+          preference when enabled).
+        </FieldDescription>
+        <div className="flex items-center gap-2 pt-2">
+          <Switch
+            id="launch-startup"
+            checked={settings.behavior.launchAtStartup}
+            onCheckedChange={(v) =>
               update({
                 ...settings,
-                security: {
-                  ...settings.security,
-                  redactSecrets: e.target.checked,
+                behavior: {
+                  ...settings.behavior,
+                  launchAtStartup: v,
                 },
               })
             }
           />
-          Redact secrets in logs
-        </label>
+          <Label htmlFor="launch-startup">Launch Friday at startup</Label>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          <p className="mb-1 font-medium text-foreground">Shortcuts</p>
+          <ul className="flex flex-col gap-1">
+            <li>
+              Quick chat:{" "}
+              {navigator.userAgent.includes("Windows")
+                ? "Alt+Shift+Space"
+                : settings.shortcuts.quickBubble}
+            </li>
+            <li>Panel: {settings.shortcuts.openPanel}</li>
+            <li>Voice: {settings.shortcuts.voiceInput}</li>
+            <li>Stop session: {settings.shortcuts.stopSession}</li>
+          </ul>
+        </div>
+        </div>
+        </div>
       </section>
 
-      <section>
-        <h3 className="mb-2 font-medium">Cursor API</h3>
-        <p className="mb-2 text-sm text-zinc-400">
-          {settings.cursor.apiKeyConfigured
-            ? "API key saved in OS secure storage on this device."
-            : "No API key configured yet."}
+      <section className={cn(UX.section, "motion-item-in")} data-od-id="settings-agents">
+        <h3 className="text-base font-medium">Agents &amp; API</h3>
+        <p className="text-sm text-muted-foreground">
+          Keys and cloud behavior for Cursor agents.
         </p>
-        <p className="mb-2 text-xs text-zinc-500">
-          Session messages and event logs are encrypted at rest with a key stored in the same OS
-          credential store.
+        <div className={cn("flex flex-col", UX.withinGroup)}>
+        <div>
+        <p className="text-sm text-muted-foreground">
+          {settings.cursor.apiKeyConfigured
+            ? "Cursor API key saved in OS secure storage on this device."
+            : "No Cursor API key configured yet."}
         </p>
         <CursorApiKeyField configured={settings.cursor.apiKeyConfigured ?? false} />
-      </section>
-
-      <section>
-        <h3 className="mb-2 font-medium">Cloud Agent</h3>
-        <p className="mb-2 text-sm text-zinc-400">
+        </div>
+        <div>
+        <p className="mb-2 text-sm text-muted-foreground">
           Cloud agents run on Cursor infrastructure and can open pull requests.
         </p>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+        <div className="flex items-center gap-2">
+          <Switch
+            id="auto-pr"
             checked={settings.cloud?.autoCreatePr ?? true}
-            onChange={(e) =>
+            onCheckedChange={(v) =>
               update({
                 ...settings,
                 cloud: {
-                  autoCreatePr: e.target.checked,
+                  autoCreatePr: v,
                   model: settings.cloud?.model,
                 },
               })
             }
           />
-          Auto-create pull request when cloud run completes
-        </label>
-        <label className="mt-2 block text-sm text-zinc-400">Model (optional)</label>
+          <Label htmlFor="auto-pr">Auto-create pull request when cloud run completes</Label>
+        </div>
+        <Label className="mt-2 block text-sm text-muted-foreground">Model (optional)</Label>
         <Input
           className="mt-1 max-w-xs"
           placeholder="e.g. composer-2.5"
@@ -456,69 +587,13 @@ export function SettingsPage() {
             })
           }
         />
-      </section>
-
-      <section>
-        <h3 className="mb-2 font-medium">General</h3>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.behavior.launchAtStartup}
-            onChange={(e) =>
-              update({
-                ...settings,
-                behavior: {
-                  ...settings.behavior,
-                  launchAtStartup: e.target.checked,
-                },
-              })
-            }
-          />
-          Launch Friday at startup
-        </label>
-      </section>
-
-      <section>
-        <h3 className="mb-2 font-medium">Voice (Cloud STT)</h3>
-        <p className="mb-2 text-sm text-zinc-400">
-          {settings.voice.sttApiKeyConfigured
-            ? "OpenAI Whisper API key stored in OS secure storage."
-            : "Configure an OpenAI API key for voice transcription."}
-        </p>
-        <SttApiKeyField configured={settings.voice.sttApiKeyConfigured ?? false} />
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.voice.confirmBeforeSend}
-            onChange={(e) =>
-              update({
-                ...settings,
-                voice: { ...settings.voice, confirmBeforeSend: e.target.checked },
-              })
-            }
-          />
-          Confirm before sending transcription
-        </label>
-      </section>
-
-      <section>
-        <h3 className="mb-2 font-medium">Keyboard shortcuts</h3>
-        <ul className="space-y-1 text-sm text-zinc-400">
-          <li>Quick Bubble: {settings.shortcuts.quickBubble}</li>
-          <li>Panel: {settings.shortcuts.openPanel}</li>
-          <li>Voice: {settings.shortcuts.voiceInput}</li>
-          <li>Stop session: {settings.shortcuts.stopSession}</li>
-        </ul>
-      </section>
-
-      <LocalDataSection />
-
-      <MobileRemoteSection />
-
-      <section>
-        <h3 className="mb-2 font-medium">Cursor CLI</h3>
+        </div>
+        <details className="rounded-md border border-border px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Advanced: Cursor CLI
+          </summary>
+          <div className={cn("mt-3 flex flex-col", UX.withinGroup)}>
         <Input
-          className="mb-3"
           placeholder="Executable path (optional)"
           value={settings.cursor.executablePath ?? ""}
           onChange={(e) =>
@@ -527,17 +602,17 @@ export function SettingsPage() {
             })
           }
         />
-        <label className="mb-3 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+        <div className="flex items-center gap-2">
+          <Switch
+            id="use-pty"
             checked={settings.cursor.usePty}
-            onChange={(e) => patchCursor({ usePty: e.target.checked })}
+            onCheckedChange={(v) => patchCursor({ usePty: v })}
           />
-          Use PTY for agent process
-        </label>
-        <div className="mb-3 grid grid-cols-2 gap-3">
+          <Label htmlFor="use-pty">Use PTY for agent process</Label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm text-zinc-400">Terminal cols</label>
+            <Label className="mb-1 block text-sm text-muted-foreground">Terminal cols</Label>
             <Input
               type="number"
               min={40}
@@ -549,7 +624,7 @@ export function SettingsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-zinc-400">Terminal rows</label>
+            <Label className="mb-1 block text-sm text-muted-foreground">Terminal rows</Label>
             <Input
               type="number"
               min={10}
@@ -561,21 +636,103 @@ export function SettingsPage() {
             />
           </div>
         </div>
-        <label className="mb-1 block text-sm text-zinc-400">
+        <div>
+        <Label className="mb-1 block text-sm text-muted-foreground">
           Headless stream arg templates (comma-separated or JSON array)
-        </label>
+        </Label>
         <Input
-          className="mb-2 font-mono text-xs"
+          className="font-mono text-xs"
           value={argTemplateText}
           onChange={(e) => setArgTemplateText(e.target.value)}
         />
-        {argError && <p className="mb-2 text-xs text-red-400">{argError}</p>}
-        <Button size="sm" variant="secondary" onClick={saveArgTemplates}>
+        {argError && <p className="text-xs text-destructive">{argError}</p>}
+        <Button size="sm" variant="secondary" className="mt-2" onClick={saveArgTemplates}>
+          <Save data-icon="inline-start" />
           Apply arg templates
         </Button>
+        </div>
+          </div>
+        </details>
+        </div>
       </section>
 
-      <Button onClick={() => update(settings)}>Save Settings</Button>
+      <section className={cn(UX.section, "motion-item-in")} data-od-id="settings-security">
+        <h3 className="text-base font-medium">Security</h3>
+        <div className={cn("flex flex-col", UX.withinGroup)}>
+        <div className="flex items-center gap-2">
+          <Switch
+            id="require-approval"
+            checked={settings.security.requireApprovalForHighRiskCommands}
+            onCheckedChange={(v) =>
+              update({
+                ...settings,
+                security: {
+                  ...settings.security,
+                  requireApprovalForHighRiskCommands: v,
+                },
+              })
+            }
+          />
+          <Label htmlFor="require-approval">Require approval for high-risk commands</Label>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <Switch
+            id="redact-secrets"
+            checked={settings.security.redactSecrets}
+            onCheckedChange={(v) =>
+              update({
+                ...settings,
+                security: {
+                  ...settings.security,
+                  redactSecrets: v,
+                },
+              })
+            }
+          />
+          <Label htmlFor="redact-secrets">Redact secrets in logs</Label>
+        </div>
+        </div>
+      </section>
+
+      <section className={cn(UX.section, "motion-item-in")} data-od-id="settings-voice">
+        <h3 className="text-base font-medium">Voice</h3>
+        <p className="text-sm text-muted-foreground">
+          Optional OpenAI key for push-to-talk transcription in Quick Chat.
+        </p>
+        <div className={cn("flex flex-col", UX.withinGroup)}>
+        <p className="mb-2 text-sm text-muted-foreground">
+          {settings.voice.sttApiKeyConfigured
+            ? "OpenAI API key stored for voice transcription only."
+            : "Optional: add an OpenAI API key (sk-…) for push-to-talk transcription. Separate from the Cursor API key above."}
+        </p>
+        <SttApiKeyField configured={settings.voice.sttApiKeyConfigured ?? false} />
+        <div className="mt-2 flex items-center gap-2">
+          <Switch
+            id="voice-confirm"
+            checked={settings.voice.confirmBeforeSend}
+            onCheckedChange={(v) =>
+              update({
+                ...settings,
+                voice: { ...settings.voice, confirmBeforeSend: v },
+              })
+            }
+          />
+          <Label htmlFor="voice-confirm">Confirm before sending transcription</Label>
+        </div>
+        </div>
+      </section>
+
+      <section className={cn(UX.section, "motion-item-in")} data-od-id="settings-data">
+        <h3 className="text-base font-medium">Data &amp; devices</h3>
+        <div className={cn("flex flex-col", UX.withinGroup)}>
+      <LocalDataSection />
+      <MobileRemoteSection />
+        </div>
+      </section>
+
+      <p className="border-t border-border pt-4 text-xs text-muted-foreground">
+        Toggles and fields save automatically when you change them.
+      </p>
     </div>
   );
 }

@@ -2,7 +2,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { OnboardingWindow } from "@/windows/onboarding/OnboardingWindow";
 import { FridayPanel } from "@/windows/panel/FridayPanel";
-import { CommandCenter } from "@/windows/command-center/CommandCenter";
 import { PetWindow } from "@/windows/pet/PetWindow";
 import { QuickBubbleWindow } from "@/windows/quick-bubble/QuickBubbleWindow";
 import { StatusBubbleWindow } from "@/windows/status-bubble/StatusBubbleWindow";
@@ -25,8 +24,6 @@ export function WindowRouter() {
       return <QuickBubbleWindow />;
     case "status-bubble":
       return <StatusBubbleWindow />;
-    case "command-center":
-      return <CommandCenter />;
     case "onboarding":
       return <OnboardingWindow />;
     case "panel":

@@ -1,9 +1,36 @@
 use rusqlite::params;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::errors::{AppError, AppResult};
-use crate::security::SecretStore;
+use crate::security::secret_store::{SecretStore, CURSOR_API_KEY_ACCOUNT};
+use crate::storage::secret_sqlite;
 use crate::storage::sqlite::Database;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorArgTemplates {
+    #[serde(default)]
+    pub headless_stream: Vec<String>,
+}
+
+fn deserialize_arg_templates<'de, D>(deserializer: D) -> Result<CursorArgTemplates, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawArgTemplates {
+        Object(CursorArgTemplates),
+        List(Vec<String>),
+    }
+
+    match RawArgTemplates::deserialize(deserializer)? {
+        RawArgTemplates::Object(value) => Ok(value),
+        RawArgTemplates::List(list) => Ok(CursorArgTemplates {
+            headless_stream: list,
+        }),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,8 +92,8 @@ pub struct CursorSettings {
     pub default_output_format: String,
     #[serde(default = "default_use_pty")]
     pub use_pty: bool,
-    #[serde(default)]
-    pub arg_templates: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_arg_templates")]
+    pub arg_templates: CursorArgTemplates,
     #[serde(default = "default_terminal_cols")]
     pub terminal_cols: u16,
     #[serde(default = "default_terminal_rows")]
@@ -228,7 +255,7 @@ impl Default for FridaySettings {
         Self {
             appearance: AppearanceSettings {
                 theme: "system".into(),
-                accent_color: "#6366f1".into(),
+                accent_color: "#c9a227".into(),
                 pet_scale: 1.0,
                 reduced_motion: false,
             },
@@ -251,7 +278,7 @@ impl Default for FridaySettings {
                 default_mode: "headless".into(),
                 default_output_format: "stream-json".into(),
                 use_pty: true,
-                arg_templates: vec![],
+                arg_templates: CursorArgTemplates::default(),
                 terminal_cols: default_terminal_cols(),
                 terminal_rows: default_terminal_rows(),
             },
@@ -278,10 +305,17 @@ impl<'a> SettingsRepo<'a> {
 
     pub fn migrate_secrets(&self) -> AppResult<()> {
         if let Some(legacy) = self.read_sqlite_secret(CURSOR_API_KEY_SETTING)? {
-            if !SecretStore::has_cursor_api_key()? {
-                SecretStore::save_cursor_api_key(&legacy)?;
+            let plain = if legacy.starts_with("enc:v1:") {
+                crate::security::DataCrypto::decrypt(&legacy).unwrap_or(legacy)
+            } else {
+                legacy
+            };
+            let trimmed = plain.trim();
+            if !trimmed.is_empty() && SecretStore::try_keyring_read(CURSOR_API_KEY_ACCOUNT)?.is_none() {
+                if !SecretStore::try_keyring_write(CURSOR_API_KEY_ACCOUNT, trimmed)? {
+                    secret_sqlite::write_plain(self.db, CURSOR_API_KEY_SETTING, trimmed)?;
+                }
             }
-            self.delete_sqlite_secret(CURSOR_API_KEY_SETTING)?;
         }
         Ok(())
     }
@@ -303,7 +337,7 @@ impl<'a> SettingsRepo<'a> {
                 Ok(FridaySettings::default())
             }
         })?;
-        settings.cursor.api_key_configured = SecretStore::has_cursor_api_key()?;
+        settings.cursor.api_key_configured = self.has_cursor_api_key()?;
         settings.voice.stt_api_key_configured = SecretStore::has_stt_api_key()?;
         ensure_mobile_bridge_token(&mut settings);
         Ok(settings)
@@ -311,7 +345,7 @@ impl<'a> SettingsRepo<'a> {
 
     pub fn save(&self, settings: &FridaySettings) -> AppResult<()> {
         let mut to_save = settings.clone();
-        to_save.cursor.api_key_configured = SecretStore::has_cursor_api_key()?;
+        to_save.cursor.api_key_configured = self.has_cursor_api_key()?;
         to_save.voice.stt_api_key_configured = SecretStore::has_stt_api_key()?;
         let json = serde_json::to_string(&to_save)?;
         self.db.with_conn(|conn| {
@@ -326,26 +360,44 @@ impl<'a> SettingsRepo<'a> {
     }
 
     pub fn save_cursor_api_key(&self, key: &str) -> AppResult<()> {
-        SecretStore::save_cursor_api_key(key)?;
-        self.delete_sqlite_secret(CURSOR_API_KEY_SETTING)?;
+        let trimmed = key.trim();
+        SecretStore::validate_cursor_api_key(trimmed)?;
+
+        if SecretStore::try_keyring_write(CURSOR_API_KEY_ACCOUNT, trimmed)? {
+            let _ = secret_sqlite::delete_plain(self.db, CURSOR_API_KEY_SETTING);
+            return Ok(());
+        }
+
+        // Fallback: same SQLite file as the running app (reliable under `tauri dev`).
+        secret_sqlite::write_plain(self.db, CURSOR_API_KEY_SETTING, trimmed)?;
+        let readback = secret_sqlite::read_plain(self.db, CURSOR_API_KEY_SETTING)?;
+        if readback.as_deref() != Some(trimmed) {
+            let path = crate::storage::local_data::app_data_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "unknown".into());
+            return Err(AppError::Other(format!(
+                "API key could not be saved to local storage ({path}). \
+                 On Windows dev builds, Windows Credential Manager sometimes blocks keyring — \
+                 the SQLite fallback also failed. Try running Friday once as administrator, \
+                 or delete the folder and retry."
+            )));
+        }
         Ok(())
     }
 
     pub fn clear_cursor_api_key(&self) -> AppResult<()> {
         SecretStore::clear_cursor_api_key()?;
-        self.delete_sqlite_secret(CURSOR_API_KEY_SETTING)?;
+        secret_sqlite::delete_plain(self.db, CURSOR_API_KEY_SETTING)?;
         Ok(())
     }
 
     pub fn has_cursor_api_key(&self) -> AppResult<bool> {
-        if SecretStore::has_cursor_api_key()? {
+        if SecretStore::try_keyring_read(CURSOR_API_KEY_ACCOUNT)?.is_some() {
             return Ok(true);
         }
-        if self.read_sqlite_secret(CURSOR_API_KEY_SETTING)?.is_some() {
-            self.migrate_secrets()?;
-            return Ok(true);
-        }
-        Ok(false)
+        Ok(secret_sqlite::read_plain(self.db, CURSOR_API_KEY_SETTING)?
+            .filter(|k| !k.trim().is_empty())
+            .is_some())
     }
 
     fn read_sqlite_secret(&self, key: &str) -> AppResult<Option<String>> {
