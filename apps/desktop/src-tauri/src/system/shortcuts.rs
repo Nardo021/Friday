@@ -5,7 +5,9 @@ use crate::core::AgentCore;
 
 pub fn register_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let gs = app.global_shortcut();
-    let _ = gs.unregister_all();
+    if let Err(e) = gs.unregister_all() {
+        eprintln!("Friday: failed to clear previous shortcuts: {e}");
+    }
 
     #[cfg(target_os = "windows")]
     {
@@ -14,38 +16,43 @@ pub fn register_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::err
             app,
             Shortcut::new(Some(Modifiers::ALT | Modifiers::SHIFT), Code::Space),
             "quick_bubble",
-        )?;
+        );
     }
     #[cfg(not(target_os = "windows"))]
     {
-        bind(app, Shortcut::new(Some(Modifiers::CONTROL), Code::Space), "quick_bubble")?;
+        bind(
+            app,
+            Shortcut::new(Some(Modifiers::CONTROL), Code::Space),
+            "quick_bubble",
+        );
     }
     bind(
         app,
         Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyF),
         "open_panel",
-    )?;
+    );
     bind(
         app,
         Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV),
         "voice_input",
-    )?;
+    );
     bind(
         app,
         Shortcut::new(Some(Modifiers::CONTROL), Code::Period),
         "stop_session",
-    )?;
+    );
 
     Ok(())
 }
 
-fn bind(
-    app: &tauri::AppHandle,
-    shortcut: Shortcut,
-    action: &'static str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let app = app.clone();
-    app.global_shortcut().on_shortcut(shortcut, move |app, _, event| {
+fn bind(app: &tauri::AppHandle, shortcut: Shortcut, action: &'static str) {
+    let label = shortcut.into_string();
+    let gs = app.global_shortcut();
+    if let Err(e) = gs.unregister(shortcut.clone()) {
+        eprintln!("Friday: could not unregister {label} before re-bind: {e}");
+    }
+
+    if let Err(e) = gs.on_shortcut(shortcut, move |app, _, event| {
         if event.state != ShortcutState::Pressed {
             return;
         }
@@ -71,6 +78,9 @@ fn bind(
             }
             _ => {}
         }
-    })?;
-    Ok(())
+    }) {
+        eprintln!(
+            "Friday: shortcut {label} ({action}) not registered — likely in use by another app: {e}"
+        );
+    }
 }
