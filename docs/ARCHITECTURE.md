@@ -33,7 +33,7 @@ services/sdk-worker/   v2 Node worker stub
 | external-cursor-observer | external_cli | observe |
 | cursor-cli-local | friday_owned_cli | full |
 | cursor-sdk-local | cursor_sdk_local | stub |
-| cursor-cloud-agent | cursor_cloud | stub |
+| cursor-cloud-agent | cursor_cloud | full (HTTP + SSE) |
 
 ## Backend Modules (Rust)
 

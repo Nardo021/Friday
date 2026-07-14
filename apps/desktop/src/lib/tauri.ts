@@ -113,6 +113,16 @@ export async function getSettings(): Promise<FridaySettings> {
   return invoke("get_settings");
 }
 
+export interface CursorCliProbe {
+  found: boolean;
+  path: string;
+  error?: string;
+}
+
+export async function probeCursorCli(): Promise<CursorCliProbe> {
+  return invoke("probe_cursor_cli");
+}
+
 export async function saveSettings(
   settings: FridaySettings,
 ): Promise<void> {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { ArrowUp, ChevronDown, Square } from "lucide-react";
 
 import type { AgentMode } from "@friday/agent-core";

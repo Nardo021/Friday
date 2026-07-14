@@ -30,7 +30,13 @@ const defaultSettings: FridaySettings = {
     defaultMode: "headless",
     defaultOutputFormat: "stream-json",
     argTemplates: {
-      headlessStream: ["--print", "--output-format", "stream-json"],
+      headlessStream: [
+        "--print",
+        "--output-format",
+        "{outputFormat}",
+        "--stream-partial-output",
+        "{prompt}",
+      ],
     },
     terminalCols: 120,
     terminalRows: 30,

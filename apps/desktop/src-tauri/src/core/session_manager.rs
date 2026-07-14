@@ -111,7 +111,17 @@ impl SessionManager {
     }
 
     pub fn load_from_db(&mut self, sessions: Vec<FridaySession>) {
-        for session in sessions {
+        for mut session in sessions {
+            // Local processes do not survive app restart. Mark stale running
+            // CLI sessions stopped so the owned-CLI slot is free. Cloud sessions
+            // may still be live and are resumed separately.
+            if session.session_type != AgentSessionType::CursorCloud
+                && is_running_status(session.status)
+            {
+                session.status = FridaySessionStatus::Stopped;
+                session.completed_at = Some(now_iso());
+                session.updated_at = now_iso();
+            }
             self.sessions.insert(session.id.clone(), session);
         }
     }

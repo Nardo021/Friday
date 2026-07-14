@@ -22,7 +22,7 @@
 ## v2 — Cursor Cloud Agent + Immersive Pet (experimental)
 
 - `@friday/sdk-worker` Node process + IPC
-- `cursor-cloud-agent` adapter live
+- `cursor-cloud-agent` adapter **live** (`api.cursor.com`)
 - API key onboarding (keyring)
 - PR / artifact events in Panel
 - Cloud session history

@@ -1,6 +1,7 @@
 import type { ControlLevel } from "./sessions.js";
 
-export interface AgentCapabilities {  canCreate: boolean;
+export interface AgentCapabilities {
+  canCreate: boolean;
   canAttach: boolean;
   canObserve: boolean;
   canSendFollowUp: boolean;
@@ -48,7 +49,7 @@ export const FRIDAY_OWNED_CLI_CAPABILITIES: AgentCapabilities = {
 
 export const CURSOR_CLOUD_CAPABILITIES: AgentCapabilities = {
   canCreate: true,
-  canAttach: true,
+  canAttach: false,
   canObserve: true,
   canSendFollowUp: true,
   canStop: true,

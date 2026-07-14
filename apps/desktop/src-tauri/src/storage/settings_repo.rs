@@ -6,11 +6,29 @@ use crate::security::secret_store::{SecretStore, CURSOR_API_KEY_ACCOUNT};
 use crate::storage::secret_sqlite;
 use crate::storage::sqlite::Database;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CursorArgTemplates {
-    #[serde(default)]
+    #[serde(default = "default_headless_stream")]
     pub headless_stream: Vec<String>,
+}
+
+impl Default for CursorArgTemplates {
+    fn default() -> Self {
+        Self {
+            headless_stream: default_headless_stream(),
+        }
+    }
+}
+
+fn default_headless_stream() -> Vec<String> {
+    vec![
+        "--print".into(),
+        "--output-format".into(),
+        "{outputFormat}".into(),
+        "--stream-partial-output".into(),
+        "{prompt}".into(),
+    ]
 }
 
 fn deserialize_arg_templates<'de, D>(deserializer: D) -> Result<CursorArgTemplates, D::Error>
@@ -220,11 +238,23 @@ pub struct ShortcutSettings {
 
 impl Default for ShortcutSettings {
     fn default() -> Self {
-        Self {
-            quick_bubble: "CommandOrControl+Space".into(),
-            open_panel: "CommandOrControl+Shift+F".into(),
-            voice_input: "CommandOrControl+Shift+V".into(),
-            stop_session: "CommandOrControl+Period".into(),
+        #[cfg(target_os = "windows")]
+        {
+            Self {
+                quick_bubble: "Alt+Shift+Space".into(),
+                open_panel: "CommandOrControl+Shift+F".into(),
+                voice_input: "CommandOrControl+Shift+V".into(),
+                stop_session: "CommandOrControl+Period".into(),
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            Self {
+                quick_bubble: "CommandOrControl+Space".into(),
+                open_panel: "CommandOrControl+Shift+F".into(),
+                voice_input: "CommandOrControl+Shift+V".into(),
+                stop_session: "CommandOrControl+Period".into(),
+            }
         }
     }
 }
