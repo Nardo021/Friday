@@ -68,10 +68,22 @@ fn bind(app: &tauri::AppHandle, shortcut: Shortcut, action: &'static str) {
                     let core = core.inner().clone();
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Ok(sessions) = core.list_active_sessions().await {
-                            if let Some(s) = sessions.first() {
-                                let _ = core.close_session_safely(app, &s.id).await;
-                            }
+                        let target = {
+                            let mgr = core.session_manager.lock().await;
+                            mgr.active_session()
+                                .filter(|s| {
+                                    crate::core::event::is_running_status(s.status)
+                                })
+                                .or_else(|| {
+                                    mgr.list()
+                                        .into_iter()
+                                        .find(|s| {
+                                            crate::core::event::is_running_status(s.status)
+                                        })
+                                })
+                        };
+                        if let Some(s) = target {
+                            let _ = core.close_session_safely(app, &s.id).await;
                         }
                     });
                 }

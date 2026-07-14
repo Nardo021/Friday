@@ -8,6 +8,16 @@ use crate::storage::settings_repo::FridaySettings;
 use crate::storage::SettingsRepo;
 
 #[tauri::command]
+pub fn probe_cursor_cli(
+    core: State<'_, Arc<AgentCore>>,
+) -> Result<crate::adapters::cursor_cli_local::launcher::CursorCliProbe, crate::errors::AppError> {
+    let settings = core.settings_snapshot();
+    Ok(crate::adapters::cursor_cli_local::launcher::probe_executable(
+        &settings.cursor,
+    ))
+}
+
+#[tauri::command]
 pub fn get_settings(
     core: State<'_, Arc<AgentCore>>,
 ) -> Result<FridaySettings, crate::errors::AppError> {

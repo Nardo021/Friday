@@ -55,7 +55,7 @@ impl ApprovalManager {
         let event = AgentEvent::ApprovalRequired {
             session_id: session_id.to_string(),
             approval_id: approval_id.clone(),
-            title: "Command approval required — Friday paused until you approve or reject.".into(),
+            title: "High-risk command observed — Approve to acknowledge, or Reject to stop the session.".into(),
             command: Some(command.to_string()),
             risk,
             timestamp: now_iso(),

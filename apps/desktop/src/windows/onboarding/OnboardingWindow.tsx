@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Cat } from "lucide-react";
+import { Cat, CheckCircle2, CircleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,8 +16,10 @@ import { invokeErrorMessage } from "@/lib/invokeError";
 import {
   finishOnboarding,
   getSettings,
+  probeCursorCli,
   saveCursorApiKey,
   saveSettings,
+  type CursorCliProbe,
 } from "@/lib/tauri";
 import type { FridaySettings } from "@friday/agent-core";
 import { useSettingsStore } from "@/state/useSettingsStore";
@@ -28,6 +30,7 @@ export function OnboardingWindow() {
   const ready = useFridayReady();
   const [apiKey, setApiKey] = useState("");
   const [settings, setSettings] = useState<FridaySettings | null>(null);
+  const [cliProbe, setCliProbe] = useState<CursorCliProbe | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +39,15 @@ export function OnboardingWindow() {
     void getSettings()
       .then(setSettings)
       .catch(() => setSettings(defaultOnboardingSettings));
+    void probeCursorCli()
+      .then(setCliProbe)
+      .catch(() =>
+        setCliProbe({
+          found: false,
+          path: "cursor-agent",
+          error: "Could not probe Cursor CLI",
+        }),
+      );
   }, [ready]);
 
   const complete = async (skipKey: boolean) => {
@@ -84,14 +96,44 @@ export function OnboardingWindow() {
         <p className="text-sm leading-relaxed text-muted-foreground">
           Friday is your desktop companion for Cursor agents. Paste your{" "}
           <strong className="font-medium text-foreground">Cursor API key</strong>{" "}
-          from the Cursor dashboard to enable Cloud Agent and related features.
-          Voice transcription uses a separate optional OpenAI key in Settings.
+          from the Cursor dashboard to enable Cloud Agent. Local CLI uses{" "}
+          <code className="text-foreground">cursor-agent</code> on your PATH
+          (no API key required).
         </p>
       </div>
 
+      {cliProbe && (
+        <div
+          className={`mb-4 flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
+            cliProbe.found
+              ? "border-border bg-muted/40 text-foreground"
+              : "border-destructive/40 bg-destructive/5 text-foreground"
+          }`}
+        >
+          {cliProbe.found ? (
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden />
+          ) : (
+            <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+          )}
+          <div className="min-w-0">
+            <p className="font-medium">
+              {cliProbe.found
+                ? "Cursor CLI detected"
+                : "Cursor CLI not found"}
+            </p>
+            <p className="break-all text-xs text-muted-foreground">
+              {cliProbe.found
+                ? cliProbe.path
+                : (cliProbe.error ??
+                  "Install Cursor Agent CLI and ensure cursor-agent is on PATH, or set the path in Settings.")}
+            </p>
+          </div>
+        </div>
+      )}
+
       <FieldGroup className="gap-4">
         <Field data-invalid={!!error}>
-          <FieldLabel htmlFor="api-key">Cursor API key</FieldLabel>
+          <FieldLabel htmlFor="api-key">Cursor API key (optional)</FieldLabel>
           <Input
             id="api-key"
             type="password"
@@ -115,9 +157,8 @@ export function OnboardingWindow() {
             >
               cursor.com/dashboard
             </a>{" "}
-            → Integrations → API Keys. Do not paste an OpenAI{" "}
-            <code className="text-foreground">sk-</code> key here. Stored in your OS
-            credential manager only.
+            → Integrations → API Keys. Needed for Cloud Agent only. Stored in
+            your OS credential manager.
           </FieldDescription>
         </Field>
       </FieldGroup>
@@ -134,7 +175,9 @@ export function OnboardingWindow() {
           Save key &amp; show pet
         </Button>
         <Button variant="secondary" disabled={busy} onClick={() => void complete(true)}>
-          Skip for now
+          {cliProbe && !cliProbe.found
+            ? "Continue without Cloud (Local CLI later)"
+            : "Skip for now — use Local CLI"}
         </Button>
       </div>
     </main>

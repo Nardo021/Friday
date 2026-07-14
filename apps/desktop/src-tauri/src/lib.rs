@@ -124,6 +124,7 @@ pub fn run() {
             commands::project_commands::get_project,
             commands::settings_commands::get_settings,
             commands::settings_commands::save_settings,
+            commands::settings_commands::probe_cursor_cli,
             commands::settings_commands::save_cursor_api_key,
             commands::settings_commands::verify_cursor_api_key,
             commands::settings_commands::clear_cursor_api_key,

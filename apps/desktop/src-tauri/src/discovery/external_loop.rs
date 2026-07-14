@@ -68,6 +68,10 @@ async fn discovery_loop(core: &AgentCore) {
             if external_pids.contains(&proc.pid) {
                 continue;
             }
+            // Skip Friday-owned PTY children even if SessionProcess.pid was missing historically.
+            if core.pty_manager.owns_pid(proc.pid) {
+                continue;
+            }
 
             let session_id = Uuid::new_v4().to_string();
 

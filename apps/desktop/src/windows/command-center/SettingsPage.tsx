@@ -19,7 +19,19 @@ import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { invokeErrorMessage } from "@/lib/invokeError";
-import { saveCursorApiKey, clearCursorApiKey, clearLocalData, getLocalDataPath, saveSttApiKey, clearSttApiKey, getMobileBridgeSettings, updateMobileBridgeSettings, regenerateMobileBridgeToken } from "@/lib/tauri";
+import {
+  saveCursorApiKey,
+  clearCursorApiKey,
+  clearLocalData,
+  getLocalDataPath,
+  saveSttApiKey,
+  clearSttApiKey,
+  getMobileBridgeSettings,
+  updateMobileBridgeSettings,
+  regenerateMobileBridgeToken,
+  probeCursorCli,
+  type CursorCliProbe,
+} from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { UX } from "@/lib/ux";
 import { useSettingsStore } from "@/state/useSettingsStore";
@@ -397,6 +409,52 @@ function formatArgTemplates(templates: string[]): string {
   return JSON.stringify(templates);
 }
 
+function CursorCliProbeRow() {
+  const [probe, setProbe] = useState<CursorCliProbe | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      const result = await probeCursorCli();
+      setProbe(result);
+      if (result.found) {
+        toast.success(`Found Cursor CLI: ${result.path}`);
+      } else {
+        toast.error(result.error ?? "cursor-agent not found");
+      }
+    } catch (e) {
+      toast.error(invokeErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void run();
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run()}>
+          {busy ? <Spinner data-icon="inline-start" /> : <RefreshCw data-icon="inline-start" />}
+          Check Cursor CLI
+        </Button>
+        {probe && (
+          <span className="text-xs text-muted-foreground">
+            {probe.found ? `OK · ${probe.path}` : (probe.error ?? "Not found")}
+          </span>
+        )}
+      </div>
+      <FieldDescription>
+        Local Agent mode runs <code className="text-foreground">cursor-agent --print --output-format stream-json</code>.
+        Install the Cursor CLI and ensure it is on PATH, or set an absolute path below.
+      </FieldDescription>
+    </div>
+  );
+}
+
 function parseArgTemplates(raw: string): string[] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
@@ -504,6 +562,35 @@ export function SettingsPage() {
           Minimizes movement and uses color-only state cues (matches system
           preference when enabled).
         </FieldDescription>
+        <div className="mt-4 flex items-center gap-2">
+          <Switch
+            id="patrol-enabled"
+            checked={settings.pet.patrolEnabled}
+            onCheckedChange={(v) =>
+              update({
+                ...settings,
+                pet: { ...settings.pet, patrolEnabled: v },
+              })
+            }
+          />
+          <Label htmlFor="patrol-enabled">Pet patrol (walk along screen edge)</Label>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <Switch
+            id="show-bubble"
+            checked={settings.behavior.showBubbleOnStatusChange}
+            onCheckedChange={(v) =>
+              update({
+                ...settings,
+                behavior: {
+                  ...settings.behavior,
+                  showBubbleOnStatusChange: v,
+                },
+              })
+            }
+          />
+          <Label htmlFor="show-bubble">Show status bubble on agent updates</Label>
+        </div>
         <div className="flex items-center gap-2 pt-2">
           <Switch
             id="launch-startup"
@@ -593,6 +680,7 @@ export function SettingsPage() {
             Advanced: Cursor CLI
           </summary>
           <div className={cn("mt-3 flex flex-col", UX.withinGroup)}>
+        <CursorCliProbeRow />
         <Input
           placeholder="Executable path (optional)"
           value={settings.cursor.executablePath ?? ""}

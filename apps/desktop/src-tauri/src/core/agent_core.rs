@@ -75,6 +75,17 @@ impl AgentCore {
         let sessions = SessionsRepo::new(&self.db).list()?;
         self.session_manager.lock().await.load_from_db(sessions);
 
+        // Persist stale local sessions marked stopped on load.
+        {
+            let mgr = self.session_manager.lock().await;
+            let repo = SessionsRepo::new(&self.db);
+            for session in mgr.list() {
+                if session.status == FridaySessionStatus::Stopped {
+                    let _ = repo.update_status(&session.id, FridaySessionStatus::Stopped, None);
+                }
+            }
+        }
+
         self.resume_cloud_sessions(app).await?;
 
         Ok(())

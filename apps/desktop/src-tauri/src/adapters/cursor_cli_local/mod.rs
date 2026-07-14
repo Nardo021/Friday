@@ -53,7 +53,7 @@ impl AgentAdapter for CursorCliLocalAdapter {
         let handler = ctx.event_handler.clone();
 
         let (pid, pty_id) = if ctx.cursor_settings.use_pty {
-            let (pty_id, mut rx) = ctx.pty_manager.create_pty(
+            let (pty_id, child_pid, mut rx) = ctx.pty_manager.create_pty(
                 &session_id,
                 ctx.cursor_settings.terminal_cols,
                 ctx.cursor_settings.terminal_rows,
@@ -72,7 +72,27 @@ impl AgentAdapter for CursorCliLocalAdapter {
                 flush_parser_buffer(&sid, &mut line_buf, &h);
             });
 
-            (0u32, Some(pty_id))
+            // Watch PTY child exit so sessions don't stay "running" forever.
+            let pty_mgr = ctx.pty_manager.clone();
+            let pty_id_watch = pty_id.clone();
+            let sid = session_id.clone();
+            let h = handler.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let success = pty_mgr.wait_for_exit(&pty_id_watch);
+                let status = if success {
+                    FridaySessionStatus::Done
+                } else {
+                    FridaySessionStatus::Stopped
+                };
+                h(AgentEvent::AgentStatus {
+                    session_id: sid,
+                    status,
+                    message: Some("Process exited".into()),
+                    timestamp: now_iso(),
+                });
+            });
+
+            (child_pid.unwrap_or(0), Some(pty_id))
         } else {
             let (pid, mut rx) = ctx
                 .supervisor
@@ -93,8 +113,10 @@ impl AgentAdapter for CursorCliLocalAdapter {
                 while let Some((line, is_stderr)) = rx.recv().await {
                     if is_stderr {
                         emit_stderr_line(&sid, &line, &h);
+                    } else {
+                        // Only feed stdout into the NDJSON parser.
+                        feed_parser_lines(&sid, &mut line_buf, line.as_bytes(), &h);
                     }
-                    feed_parser_lines(&sid, &mut line_buf, line.as_bytes(), &h);
                 }
                 flush_parser_buffer(&sid, &mut line_buf, &h);
             });
@@ -148,6 +170,7 @@ impl AgentAdapter for CursorCliLocalAdapter {
 
     async fn stop_session(&self, session_id: &str, ctx: &AdapterContext) -> AppResult<()> {
         if ctx.cursor_settings.use_pty {
+            // Soft stop: Ctrl+C → grace → kill (handled inside PtyManager::close).
             ctx.pty_manager.close_by_session(session_id, false)?;
         } else {
             ctx.supervisor.stop_session(session_id, 3).await?;

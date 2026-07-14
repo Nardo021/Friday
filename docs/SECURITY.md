@@ -21,13 +21,13 @@ Classifier: `risk_classifier.rs` + patterns in `command_policy.rs`.
 
 ## Approval Layer
 
-When risk is high (or medium if setting enabled):
+When a high-risk (or medium, if enabled) shell command is observed in the Cursor CLI stream:
 
-1. Emit `approval.required` event
-2. Pause session until user approves/rejects
-3. UI shows Approve / Reject in Chat + Quick Bubble
+1. Emit `approval.required` (non-blocking — the CLI may already be running the command)
+2. Mark session `waiting_permission` in the UI
+3. **Acknowledge** clears the approval card; **Stop session** kills the Friday-owned agent
 
-MVP uses button confirmation — no MFA.
+This is observe-and-stop, not a Cursor permission gate. MVP uses button confirmation — no MFA.
 
 ## Secret Redaction
 
@@ -68,15 +68,15 @@ Configured in `bundle/windows/nsis-hooks.nsh`.
 
 ## Process Kill Switch
 
-Stop flow:
+Stop flow (PTY / owned CLI):
 
-1. Send graceful stop signal
-2. Wait 3 seconds
-3. Force kill process
-4. Mark session `cancelled`
+1. Send Ctrl+C (SIGINT) into the PTY
+2. Wait up to 3 seconds
+3. Force kill if still alive
+4. Mark session `stopped`
 5. Save logs
 
-All child PIDs tracked in process registry to prevent orphans.
+Child PIDs are recorded on the session and excluded from external `cursor-agent` discovery to avoid duplicate observe sessions.
 
 ## Settings
 

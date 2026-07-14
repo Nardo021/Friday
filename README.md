@@ -27,6 +27,10 @@ Friday/
 
 Prerequisites: Node.js and Rust (for Tauri). See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
+For **Local CLI** mode, install the Cursor Agent CLI and ensure `cursor-agent` is on your `PATH` (or set the path in Settings → Advanced: Cursor CLI). Onboarding probes for it automatically.
+
+For **Cursor API / Cloud** mode, add a Cursor dashboard API key (`crsr_…`) in onboarding or Settings.
+
 ```bash
 npm install
 

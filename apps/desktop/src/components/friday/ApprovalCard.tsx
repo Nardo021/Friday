@@ -21,29 +21,33 @@ export function ApprovalCard({
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5 font-medium">
             <ShieldAlert />
-            Approval required
+            High-risk command
           </span>
           <Badge variant={risk === "high" ? "destructive" : "outline"}>
             {risk}
           </Badge>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Cursor may already be running this command. Acknowledge, or stop the
+          Friday-owned session.
+        </p>
         {command && (
           <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs">
             {command}
           </pre>
         )}
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => approveCommand(approvalId)}>
+          <Button size="sm" onClick={() => void approveCommand(approvalId)}>
             <Check data-icon="inline-start" />
-            Approve
+            Acknowledge
           </Button>
           <Button
             size="sm"
             variant="destructive"
-            onClick={() => rejectCommand(approvalId)}
+            onClick={() => void rejectCommand(approvalId)}
           >
             <X data-icon="inline-start" />
-            Reject
+            Stop session
           </Button>
         </div>
       </CardContent>

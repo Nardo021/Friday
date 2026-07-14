@@ -17,7 +17,11 @@ const MENU_ITEMS: {
 }[] = [
   { label: "Quick chat", icon: MessageSquare, action: () => void openQuickBubble() },
   { label: "Open panel", icon: PanelTop, action: () => void openPanel() },
-  { label: "Hide pet", icon: EyeOff, action: () => void getCurrentWindow().hide() },
+  {
+    label: "Hide pet",
+    icon: EyeOff,
+    action: () => void getCurrentWindow().hide(),
+  },
 ];
 
 export function PetContextMenu({
